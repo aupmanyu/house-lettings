@@ -10,7 +10,7 @@ from slimit.parser import Parser
 from slimit.visitors import nodevisitor
 from bs4 import BeautifulSoup
 
-import constants
+import rmv_constants
 
 
 # "https://www.rightmove.co.uk/property-to-rent/find.html?locationIdentifier=POSTCODE%5E1218949&radius=0.5""
@@ -22,7 +22,7 @@ def get_properties_summary(url: str, postcode_identifier: str, **kwargs):
     to get to the Rightmove-specific unique IDs for each property
     """
 
-    xpath_property_card = constants.PROPERTY_ID_FILTER
+    xpath_property_card = rmv_constants.PROPERTY_ID_FILTER
     properties_id_list = []
     payload = {
         "locationIdentifier": postcode_identifier.replace(' ', ''),
@@ -38,7 +38,7 @@ def get_properties_summary(url: str, postcode_identifier: str, **kwargs):
 
 
 def get_property_details(property_id: str):
-    url = constants.BASE_URL + property_id + '.html'
+    url = rmv_constants.BASE_URL + property_id + '.html'
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) '
                       'Chrome/60.0.3112.113 Safari/537.36'
@@ -46,7 +46,7 @@ def get_property_details(property_id: str):
     data = requests.get(url, headers=headers)
     soup = BeautifulSoup(data.text, "html.parser")
     scripts_soup = soup.find_all('script')
-    scripts_with_details = list(filter(lambda x: True if x.find(constants.PROPERTY_DETAILS_FILTER) >= 0 else False,
+    scripts_with_details = list(filter(lambda x: True if x.find(rmv_constants.PROPERTY_DETAILS_FILTER) >= 0 else False,
                                        [str(scripts_soup[y].next).strip().replace('\r', '')
                                        .replace('\n', '')
                                        .replace('\t', '')
@@ -55,7 +55,7 @@ def get_property_details(property_id: str):
     # the field we want is repeated many times in this script so we just pick one
     # (use 6th element because it's the first occurence of clean JS code that doesn't cause the parser to break)
     scripts_with_availability = \
-    list(filter(lambda x: True if x.find(constants.PROPERTY_AVAILABILITY_FILTER) >= 0 else False,
+    list(filter(lambda x: True if x.find(rmv_constants.PROPERTY_AVAILABILITY_FILTER) >= 0 else False,
                 [str(scripts_soup[y].next).strip().replace('\r', '')
                 .replace('\n', '')
                 .replace('\t', '')
@@ -64,26 +64,26 @@ def get_property_details(property_id: str):
     # hacks because there is a JS error in this script (missing semicolon) further down (around char 10710)
     # that causes parser to break
     try:
-        scripts_with_images = list(filter(lambda x: True if x.find(constants.PROPERTY_IMAGES_FILTER) >= 0 else False,
+        scripts_with_images = list(filter(lambda x: True if x.find(rmv_constants.PROPERTY_IMAGES_FILTER) >= 0 else False,
                                           [str(scripts_soup[y].next).strip().replace('\r', '')
                                           .replace('\n', '')
                                           .replace('\t', '')
                                            for y in range(0, len(scripts_soup))]))[0].split('(jQuery);')
         scripts_with_images = list(
-            filter(lambda x: True if x.find(constants.PROPERTY_IMAGES_FILTER) >= 0 else False,
+            filter(lambda x: True if x.find(rmv_constants.PROPERTY_IMAGES_FILTER) >= 0 else False,
                    [y for y in scripts_with_images]))
 
     except IndexError:
         scripts_with_images = []
 
     try:
-        scripts_with_floorplans = list(filter(lambda x: True if x.find(constants.PROPERTY_FLOORPLAN_FILTER) >= 0 else False,
+        scripts_with_floorplans = list(filter(lambda x: True if x.find(rmv_constants.PROPERTY_FLOORPLAN_FILTER) >= 0 else False,
                                               [str(scripts_soup[y].next).strip().replace('\r', '')
                                               .replace('\n', '')
                                               .replace('\t', '')
                                                for y in range(0, len(scripts_soup))]))[0].split('(jQuery);')
         scripts_with_floorplans = list(
-            filter(lambda x: True if x.find(constants.PROPERTY_FLOORPLAN_FILTER) >= 0 else False,
+            filter(lambda x: True if x.find(rmv_constants.PROPERTY_FLOORPLAN_FILTER) >= 0 else False,
                    [y for y in scripts_with_floorplans]))
     except IndexError:
         scripts_with_floorplans = []
@@ -96,14 +96,14 @@ def get_property_details(property_id: str):
     property_listing = {}
     for tree_node in tree:
         for node in walker.filter(tree_node, lambda x: isinstance(x, Assign)):
-            for field in constants.PropertyDetails:
+            for field in rmv_constants.RmvPropDetails:
                 if field.value.rmv_field == node.left.value:
-                    if field.name == constants.PropertyDetails.image_links.name:
+                    if field.name == rmv_constants.RmvPropDetails.image_links.name:
                         if field.name in property_listing:
                             (property_listing[field.name]).append(node.right.value.replace('"', ''))
                         else:
                             property_listing[field.name] = [node.right.value.replace('"', '')]
-                    elif field.name == constants.PropertyDetails.floorplan_links.name:
+                    elif field.name == rmv_constants.RmvPropDetails.floorplan_link.name:
                         property_listing[field.name] = [link.value.replace('"', '') for link in node.right.items]
                     else:
                         property_listing[field.name] = str(node.right.value).replace('"', '')
@@ -141,7 +141,7 @@ def get_property_details(property_id: str):
 # def get_property_images():
 #     images = soup.find_all('a')
 
-# property_id_list = get_property_list(BASE_URL + 'find.html', 'POSTCODE^1218949', radius=0.5)
+# property_id_list = get_property_list(BASE_URL + 'find.html', 'OUTCODE^E2762', radius=0.5)
 # [get_property_details(property_id) for property_id in property_id_list]
 # results = get_soup_webpage(url_summary.format(0))
 # print(results)
@@ -149,7 +149,7 @@ get_property_details('property-76133335')
 get_property_details('property-45850637')
 get_property_details('property-43602508')
 get_property_details('property-47191512')
-test = dataclasses.fields(constants.PropertyDetails)
+test = dataclasses.fields(rmv_constants.RmvPropDetails)
 
 # if __name__ == "__main__":
 #    pass
