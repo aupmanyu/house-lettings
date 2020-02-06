@@ -5,11 +5,15 @@ from collections import namedtuple
 BASE_URL = "https://www.rightmove.co.uk/property-to-rent/"
 MAX_RESULTS_PER_PAGE = 24
 
-PROPERTY_ID_FILTER = {"class": "l-searchResult is-list is-not-grid"}
+PROPERTY_ID_FILTER = {"class": "l-searchResult is-list"}
+TOTAL_COUNT_FILTER = {"class": "searchHeader-resultCount"}
+
+PROPERTY_DESCRIPTION_FILTER = {"class": "left overflow-hidden agent-content"}
 PROPERTY_DETAILS_FILTER = 'RIGHTMOVE.ANALYTICS.DataLayer.pushKV(k,v)'
 PROPERTY_IMAGES_FILTER = 'var imageGallery'
 PROPERTY_AVAILABILITY_FILTER = "RIGHTMOVE.ANALYTICS.PageViewTracker.trackOnClick('#facebook'"
 PROPERTY_FLOORPLAN_FILTER = 'RIGHTMOVE.PROPERTYDETAILS.FloorplanViewer'
+
 
 Semantic = namedtuple('prop_details', 'rmv_field')
 
