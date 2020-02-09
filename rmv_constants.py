@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from collections import namedtuple
 
 BASE_URL = "https://www.rightmove.co.uk/property-to-rent/"
+SEARCH_URI = 'find.html'
 MAX_RESULTS_PER_PAGE = 24
 
 PROPERTY_ID_FILTER = {"class": "l-searchResult is-list"}
