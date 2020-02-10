@@ -33,7 +33,7 @@ class RmvScraper:
     def search_parallel(self, search_postcodes: [str], **kwargs):
         search_partial = partial(self.search_summary, **kwargs)
         prop_details_partial = partial(self._get_property_details, **kwargs)
-        with mp.get_context("spawn").Pool(processes=50) as pool:
+        with mp.get_context("spawn").Pool(processes=15) as pool:
             properties_id_list = pool.map(search_partial, search_postcodes)
             properties_id_list_flat = [item for sublist in properties_id_list for item in sublist]
             # results = pool.starmap(self.search, search_postcodes, **kwargs)
@@ -41,6 +41,7 @@ class RmvScraper:
             # print(properties_id_list_flat)
             property_profiles = pool.map(prop_details_partial, properties_id_list_flat)
             property_profiles = list(filter(lambda x: True if x is not None else False, property_profiles))
+            csv_parser(property_profiles, "write")
             print("Got back profiles for {} properties".format(len(property_profiles)))
             # print(property_profiles)
 
@@ -196,7 +197,10 @@ class RmvScraper:
                                 property_listing[field.name] = str(node.right.value).replace('"', '')
                             break
             print("Finished parsing property URL {}".format(url))
-            return property_listing
+
+            if date_available_filter(property_listing, '2020-02-10-00-00-00', '2020-04-01-00-00-00'):
+                if enough_images_filter(property_listing, 0):
+                    return property_listing
 
         except (TimeoutError, urllib3.exceptions.MaxRetryError, requests.exceptions.ConnectionError) as e:
             print("An error occurred getting url {}: {}".format(url, e))
@@ -210,68 +214,68 @@ class RmvScraper:
             print("Some other error occurred parsing data from url {}: {}".format(url, e))
             pass
 
-        # if keyword_filter(keywords, description_text):
-        #     if last_stage_filter(property_listing):
-        #         made_the_cut.append(url)
-        #         print(made_the_cut[0])
-        #     else:
-        #         ignored.append(url)
-        # else:
-        #     ignored.append(url)
-        # print("Ignored ", ignored)
-            # return property_listing[rmv_constants.RmvPropDetails.rmv_unique_link.name]
-        # print(property_listing)
-
 
 def keyword_filter(keywords: list, description: str):
     if all(x in description for x in keywords):
         return True
 
-def last_stage_filter(property_listing):
+
+def date_available_filter(property_listing, lower_threshold, upper_threshold):
     available_date = datetime.datetime.strptime(property_listing[rmv_constants.RmvPropDetails.date_available.name],
                                                 "%Y-%m-%d-%H-%M-%S")
-    lower_date_threshold = datetime.datetime.strptime('2020-02-01-00-00-00', "%Y-%m-%d-%H-%M-%S")
-    upper_date_threshold = datetime.datetime.strptime('2020-03-18-00-00-00', "%Y-%m-%d-%H-%M-%S")
-    try:
-        if not rmv_constants.RmvPropDetails.image_links.name in property_listing or \
-                len(property_listing[rmv_constants.RmvPropDetails.image_links.name]) < 5:
-            return False
-        # elif not rmv_constants.RmvPropDetails.floorplan_link.name in property_listing or\
-        #         len(property_listing[rmv_constants.RmvPropDetails.floorplan_link.name]) < 1:
-        #     return False
-        elif float(property_listing[rmv_constants.RmvPropDetails.rent_pcm.name]) < 1200:
-            return False
-        elif not(lower_date_threshold <= available_date <= upper_date_threshold):
-            return False
-        else:
-            return True
-    except TypeError:
-        pass
+    lower_date_threshold = datetime.datetime.strptime(lower_threshold, "%Y-%m-%d-%H-%M-%S")
+    upper_date_threshold = datetime.datetime.strptime(upper_threshold, "%Y-%m-%d-%H-%M-%S")
+
+    if not (lower_date_threshold <= available_date <= upper_date_threshold):
+        return False
+    else:
+        return True
 
 
-def csv_parser(file, read=True, write=False):
+def enough_images_filter(property_listing, threshold):
+    if not rmv_constants.RmvPropDetails.image_links.name in property_listing or \
+            len(property_listing[rmv_constants.RmvPropDetails.image_links.name]) < threshold:
+        return False
+    else:
+        return True
+
+
+def floorplan_filter(property_listing):
+    if not rmv_constants.RmvPropDetails.floorplan_link.name in property_listing or\
+            len(property_listing[rmv_constants.RmvPropDetails.floorplan_link.name]) < 1:
+        return False
+    else:
+        return True
+
+
+def csv_parser(file, mode=None):
     properties_list = []
-    if read:
+    if mode == 'read':
         with open(file, 'r') as f:
             reader = csv.reader(f)
             temp_list = list(reader)[1:]
             for each in temp_list:
                 properties_list += [x for x in each if x != '']
-    elif write:
-        pass
+    elif mode == 'write':
+        with open('michelle.csv', 'w') as f:
+            output = csv.writer(f, delimiter=',')
+            output.writerow(file[0].keys())
+            for row in file:
+                output.writerow(row.values())
+
 
     return properties_list
 
-postcode_list = ["OUTCODE^2510","OUTCODE^2498","OUTCODE^2517","OUTCODE^2522","OUTCODE^2521","OUTCODE^2317",
-                 "OUTCODE^2311","OUTCODE^2309","OUTCODE^2316","OUTCODE^749","OUTCODE^744","OUTCODE^750","OUTCODE^756",
-                 "OUTCODE^755","OUTCODE^744","OUTCODE^755","OUTCODE^763","OUTCODE^755","OUTCODE^762","OUTCODE^745","OUTCODE^758",
-                 "OUTCODE^752","OUTCODE^758","OUTCODE^762","OUTCODE^1673","OUTCODE^1672","OUTCODE^1674","OUTCODE^1680","OUTCODE^1686",
-                 "OUTCODE^1682","OUTCODE^1683","OUTCODE^770","OUTCODE^2795","OUTCODE^2791","OUTCODE^1666","OUTCODE^1683","OUTCODE^1685",
-                 "OUTCODE^1676","OUTCODE^1861","OUTCODE^1855","OUTCODE^1859","OUTCODE^1857"]
+# postcode_list = ["OUTCODE^2510","OUTCODE^2498","OUTCODE^2517","OUTCODE^2522","OUTCODE^2521","OUTCODE^2317",
+#                  "OUTCODE^2311","OUTCODE^2309","OUTCODE^2316","OUTCODE^749","OUTCODE^744","OUTCODE^750","OUTCODE^756",
+#                  "OUTCODE^755","OUTCODE^744","OUTCODE^755","OUTCODE^763","OUTCODE^755","OUTCODE^762","OUTCODE^745","OUTCODE^758",
+#                  "OUTCODE^752","OUTCODE^758","OUTCODE^762","OUTCODE^1673","OUTCODE^1672","OUTCODE^1674","OUTCODE^1680","OUTCODE^1686",
+#                  "OUTCODE^1682","OUTCODE^1683","OUTCODE^770","OUTCODE^2795","OUTCODE^2791","OUTCODE^1666","OUTCODE^1683","OUTCODE^1685",
+#                  "OUTCODE^1676","OUTCODE^1861","OUTCODE^1855","OUTCODE^1859","OUTCODE^1857"]
 
-# postcode_list = ["OUTCODE^2510","OUTCODE^2498"]
+postcode_list = ["OUTCODE^744","OUTCODE^755", "OUTCODE^1666", "OUTCODE^1685", "OUTCODE^1861", "OUTCODE^2311"]
 
-keywords = 'parking,garden'
+keywords = ''
 
 # for postcode in postcode_list:
 #     print("Searching through postcode identifier {} of {} postcodes".format(postcode, len(postcode_list)))
@@ -301,7 +305,7 @@ if __name__ == "__main__":
     # mp.set_start_method('spawn')
     start = timeit.default_timer()
     rmv_properties = RmvScraper()
-    rmv_properties.search_parallel(postcode_list, radius=0, maxPrice=1750, minBedrooms=1, keywords=keywords)
+    rmv_properties.search_parallel(postcode_list, radius=0, maxPrice=2600, minBedrooms=3)
     end = timeit.default_timer()
     print("It took {} seconds to run".format(end - start))
 
