@@ -53,3 +53,4 @@ class RmvPropDetails(Enum):
     estate_agent_address = Semantic('"displayAddress"')
     image_links: [str] = Semantic('"masterUrl"')
     floorplan_link: str = Semantic('zoomUrls')
+    description: str = Semantic('') #description does not hav

@@ -1,7 +1,15 @@
+import csv
+import datetime
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 import random
+
+import rmv_constants
+
+
+def time_now():
+    return datetime.datetime.strftime(datetime.datetime.now(), "%Y_%m_%d_%H_%M_%S")
 
 
 def validate_postcode(postcode: str):
@@ -64,12 +72,7 @@ def gen_random_user_agent():
     return random.choice(user_agent_list)
 
 
-def requests_retry_session(
-    retries=6,
-    backoff_factor=0.6,
-    status_forcelist=(500, 502, 504),
-    session=None,
-):
+def requests_retry_session(retries=6, backoff_factor=0.6, status_forcelist=(500, 502, 504), session=None):
     session = session or requests.Session()
     retry = Retry(
         total=retries,
@@ -82,3 +85,36 @@ def requests_retry_session(
     session.mount('http://', adapter)
     session.mount('https://', adapter)
     return session
+
+    properties_list = []
+    with open(file) as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            properties_list.append(dict(row))
+
+    return properties_list
+
+
+def csv_reader(file):
+    '''
+
+    :param file: input csv file to read
+    :return: a list containing a dict for each property
+    '''
+
+    properties_list = []
+    with open(file) as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            properties_list.append(dict(row))
+
+    return properties_list
+
+
+def csv_writer(data, out_file):
+    fieldnames = [x.name for x in rmv_constants.RmvPropDetails]
+    with open(out_file, 'w') as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames, delimiter=',')
+        writer.writeheader()
+        for each in data:
+            writer.writerow(each)
