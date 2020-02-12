@@ -37,7 +37,7 @@ def floorplan_filter(property_listing):
 
 def min_rent_filter(property_listing, threshold):
     if rmv_constants.RmvPropDetails.rent_pcm.name not in property_listing or \
-            property_listing[rmv_constants.RmvPropDetails.rent_pcm.name] < threshold:
+            float(property_listing[rmv_constants.RmvPropDetails.rent_pcm.name]) < threshold:
         return False
     else:
         return True
