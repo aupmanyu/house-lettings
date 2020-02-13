@@ -105,8 +105,6 @@ class RmvScraper:
             'User-Agent': util.gen_random_user_agent()
         }
 
-        keywords = kwargs['keywords'] if kwargs['keywords'] else None
-
         xpath_description = rmv_constants.PROPERTY_DESCRIPTION_FILTER
 
         try:
@@ -114,7 +112,7 @@ class RmvScraper:
             soup = BeautifulSoup(data.text, "html.parser")
             property_listing = {}
             description_text = soup.find("div", xpath_description).text
-            property_listing[rmv_constants.RmvPropDetails.description.name] = description_text
+            property_listing[rmv_constants.RmvPropDetails.description.name] = description_text.strip().replace('\n', '')
 
             scripts_soup = soup.find_all('script')
             scripts_with_details = list(filter(lambda x: True if x.find(rmv_constants.PROPERTY_DETAILS_FILTER) >= 0 else False,
