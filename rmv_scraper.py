@@ -4,7 +4,7 @@ import urllib3
 import requests
 from functools import partial
 from calmjs.parse import es5
-from calmjs.parse.asttypes import Assign
+from calmjs.parse.asttypes import Assign, UnaryExpr
 from calmjs.parse.walkers import Walker
 from bs4 import BeautifulSoup
 
@@ -175,7 +175,13 @@ class RmvScraper:
                             elif field.name == rmv_constants.RmvPropDetails.floorplan_link.name:
                                 property_listing[field.name] = [link.value.replace('"', '') for link in node.right.items]
                             else:
-                                property_listing[field.name] = str(node.right.value).replace('"', '')
+                                if isinstance(node.right, UnaryExpr):
+                                    # node.right.value.value because float() only takes str or number
+                                    # but not type "Number" which is what UnaryExpr type contains for node.right.value
+                                    property_listing[field.name] = str(float(node.right.value.value) * -1) \
+                                        if node.right.op == '-' else str(node.right.value)
+                                else:
+                                    property_listing[field.name] = str(node.right.value).replace('"', '')
                             break
             print("Finished parsing property URL {}".format(url))
             return property_listing

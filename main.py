@@ -47,17 +47,26 @@ if __name__ == "__main__":
                        upper_threshold='2020-04-01-00-00-00'),
                partial(filters.min_rent_filter, threshold=1200)]
 
+    print("Filtering properties now ...")
     filtered_properties = list(filter(lambda x: all(f(x) for f in filters), rmv_properties))
+    print("Retained {} properties after filtering".format(len(filtered_properties)))
 
     output_file_filtered = USER_OUTPUT_DATA_PATH + '{}_{}_filtered.csv'.format(USER, util.time_now())
+
     try:
+        print("Identifying any duplicates from previous runs ...")
         with open(USER_OUTPUT_DATA_PATH + '.lastrunfiltered', 'r') as f:
+            # TODO: add code to read all previous filtered files
             unique_properties = []
             prev_filtered_properties_id = set(x[rmv_constants.RmvPropDetails.rmv_unique_link.name]
                                               for x in util.csv_reader(f.read()))
             curr_filtered_properties_id = set(x[rmv_constants.RmvPropDetails.rmv_unique_link.name]
                                                  for x in filtered_properties)
             unique_properties_id = curr_filtered_properties_id.difference(prev_filtered_properties_id)
+
+            print("Removed {} duplicates from previous runs"
+                  .format(len(filtered_properties) - len(unique_properties_id)))
+
             for each in filtered_properties:
                 for k,v in each.items():
                     if k == rmv_constants.RmvPropDetails.rmv_unique_link.name:
@@ -65,12 +74,16 @@ if __name__ == "__main__":
                             unique_properties.append(each)
                         break
             util.csv_writer(unique_properties, output_file_filtered)
-            print("Found {} properties after filtering stored at {}".format(len(unique_properties),
-                                                                            output_file_filtered))
+            print("FINAL RESULT: {} properties stored at {}".format(len(unique_properties), output_file_filtered))
+
+        with open(USER_OUTPUT_DATA_PATH + '.lastrunfiltered', 'a') as f:
+            f.write('{}\n'.format(output_file_filtered))
+
     except FileNotFoundError:
         util.csv_writer(filtered_properties, output_file_filtered)
         with open(USER_OUTPUT_DATA_PATH + '.lastrunfiltered', 'w') as f:
-            f.write(output_file_filtered)
-        print("Found {} properties after filtering stored at {}".format(len(filtered_properties), output_file_filtered))
+            f.write('{}\n'.format(output_file_filtered))
+        print("No previous runs founds so no duplicates need to be removed")
+        print("FINAL RESULT: {} properties stored at {}".format(len(filtered_properties), output_file_filtered))
 
 
