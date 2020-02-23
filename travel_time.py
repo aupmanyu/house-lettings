@@ -11,7 +11,7 @@ gmaps = googlemaps.Client(key=gmaps_key)
 
 def get_commute_times(properties: [dict], destinations: [str]):
     distance_matrix = {}
-    modes = ['transit', 'walking']
+    modes = ['transit', 'walking', 'bicycling']
     origins = [[x[rmv_constants.RmvPropDetails.geo_lat.name], x[rmv_constants.RmvPropDetails.geo_long.name]]
                for x in properties]
     for mode in modes:
