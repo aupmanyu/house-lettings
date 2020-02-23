@@ -112,9 +112,25 @@ def csv_reader(file):
 
 
 def csv_writer(data, out_file):
-    fieldnames = [x.name for x in rmv_constants.RmvPropDetails]
+    max_fields = 0
+    max_field_dict = None
+    for each in data:
+        if len(each.keys()) > max_fields:
+            max_fields = len(each.keys())
+            max_field_dict = each
+
+    fieldnames = [x for x in max_field_dict.keys()]
+
     with open(out_file, 'w') as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames, delimiter=',')
         writer.writeheader()
         for each in data:
             writer.writerow(each)
+
+
+def rmv_generate_url_from_id(property_dict: [dict]):
+    property_dict['url'] = rmv_constants.BASE_URL \
+                                                          + 'property-{}'\
+                                                            .format(property_dict[rmv_constants.RmvPropDetails.
+                                                                    rmv_unique_link.name]) \
+                                                          + '.html'

@@ -11,6 +11,8 @@ beautifulsoup4 = "*"
 slimit = "*"
 calmjs-parse = "*"
 pyld = "*"
+googlemaps = "*"
+python-dateutil = "*"
 
 [requires]
 python_version = "3.7"
