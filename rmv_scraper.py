@@ -1,3 +1,6 @@
+import re
+import datetime
+import dateutil.parser as parser
 import multiprocessing as mp
 import math
 import urllib3
@@ -183,6 +186,11 @@ class RmvScraper:
                                 else:
                                     property_listing[field.name] = str(node.right.value).replace('"', '')
                             break
+
+            match = re.search('(\d+/\d+/\d+)', description_text)
+            if match:
+                property_listing[rmv_constants.RmvPropDetails.date_available.name] = \
+                    datetime.datetime.strftime(parser.parse(match.group(1)), "%Y-%m-%d-%H-%M-%S")
             print("Finished parsing property URL {}".format(url))
             return property_listing
 
