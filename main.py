@@ -105,6 +105,7 @@ if __name__ == "__main__":
     output_file_filtered = USER_OUTPUT_DATA_PATH + '{}_{}_filtered.csv'.format(USER, util.time_now())
 
     if filtered_properties:
+        # no iteration needed for commute times because GMAPS API can take in 25 x 25 (origins x destinations)
         travel_time.get_commute_times(filtered_properties, config['destinations'])
         [travel_time.get_property_zone(x) for x in filtered_properties]
         [util.rmv_generate_url_from_id(x) for x in filtered_properties]

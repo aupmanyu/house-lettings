@@ -132,5 +132,12 @@ def rmv_generate_url_from_id(property_dict: [dict]):
     property_dict['url'] = rmv_constants.BASE_URL \
                                                           + 'property-{}'\
                                                             .format(property_dict[rmv_constants.RmvPropDetails.
-                                                                    rmv_unique_link.name]) \
-                                                          + '.html'
+                                                                    rmv_unique_link.name]) + '.html'
+
+def chunks(lst, n):
+    """Yield successive indices for n-sized chunks from lst."""
+    for i in range(0, len(lst), n):
+        if i + n <= len(lst):
+            yield i, i + n
+        else:
+            yield i, len(lst)

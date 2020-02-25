@@ -16,6 +16,9 @@ PROPERTY_AVAILABILITY_FILTER = "RIGHTMOVE.ANALYTICS.PageViewTracker.trackOnClick
 PROPERTY_FLOORPLAN_FILTER = 'RIGHTMOVE.PROPERTYDETAILS.FloorplanViewer'
 
 
+GMAPS_DISTANCE_MATRIX_MAX_ORIGINS = 25
+
+
 Semantic = namedtuple('prop_details', 'rmv_field')
 
 
