@@ -34,10 +34,7 @@ def get_commute_times(properties: [dict], destinations: [str]):
             if 'augment' not in properties[idx]:
                 properties[idx]['augment'] = {}
             travel_times = [{dest: {k: (val['elements'][i]['duration']['value']) / 60}}  # in minutes
-<<<<<<< HEAD
-=======
                             if 'duration' in val['elements'][i] else None
->>>>>>> 2ba4382... Fix temporary patch by moving logic to handle more than 25 origins for GMAPS API inside the function to make transparent to user
                             for i, dest in enumerate(destinations)]
             if 'travel_time' not in properties[idx]['augment']:
                 properties[idx]['augment']['travel_time'] = travel_times
@@ -46,8 +43,8 @@ def get_commute_times(properties: [dict], destinations: [str]):
                     [properties[idx]['augment']['travel_time'][i][k].update(travel_times[i][k]) for k in data.keys()]
 
             properties[idx]['avg_travel_time_{}'.format(k)] = (statistics.mean([v[k] for x in travel_times
+                                                                                if x is not None
                                                                                 for v in x.values()]))
-
 
 def get_property_zone(property_dict: dict):
     location = (property_dict[rmv_constants.RmvPropDetails.geo_lat.name],

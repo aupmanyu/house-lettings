@@ -1,3 +1,4 @@
+import os
 import csv
 import datetime
 import requests
@@ -5,7 +6,12 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 import random
 
+import googlemaps
+
 import rmv_constants
+
+gmaps_key = os.environ['GMAPS_KEY']
+gmaps = googlemaps.Client(key=gmaps_key)
 
 
 def time_now():
@@ -129,10 +135,9 @@ def csv_writer(data, out_file):
 
 
 def rmv_generate_url_from_id(property_dict: [dict]):
-    property_dict['url'] = rmv_constants.BASE_URL \
-                                                          + 'property-{}'\
-                                                            .format(property_dict[rmv_constants.RmvPropDetails.
-                                                                    rmv_unique_link.name]) + '.html'
+    property_dict['url'] = rmv_constants.BASE_URL + '/' \
+                           + 'property-{}'.format(property_dict[rmv_constants.RmvPropDetails.rmv_unique_link.name]) \
+                           + '.html'
 
 def chunks(lst, n):
     """Yield successive indices for n-sized chunks from lst."""
@@ -141,3 +146,8 @@ def chunks(lst, n):
             yield i, i + n
         else:
             yield i, len(lst)
+
+
+def geocode_address(location: str):
+    r = gmaps.geocode(location, region='uk')
+    return tuple((r[0]['geometry']['location']).values())

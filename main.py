@@ -1,9 +1,7 @@
 import errno
-import datetime
 import timeit
 import json
 from functools import partial
-from typing import List, Any
 
 from rmv_scraper import RmvScraper
 
@@ -12,8 +10,8 @@ import filters
 import travel_time
 import rmv_constants
 
-USER = 'michelle'
-NEW_RUN = False
+USER = 'test_user.template'
+NEW_RUN = True
 
 # ------------------------- // -------------------------
 
@@ -23,13 +21,17 @@ USER_ALL_CACHE_FILE = USER_OUTPUT_DATA_PATH + '.lastrunall'
 USER_FILTER_CACHE_FILE = USER_OUTPUT_DATA_PATH + '.lastrunfiltered'
 
 
-def new_run():
+def new_run(config):
     print("This is a new run so going to the Internet to get deets ...")
     start = timeit.default_timer()
-    rmv = RmvScraper()
-    rmv_properties = rmv.search_parallel(config['postcode_list'], radius=config['radius'],
-                                         maxPrice=config['maxPrice'],
-                                         minBedrooms=config['minBedrooms'], keywords=config['keywords'])
+    rmv = RmvScraper(config)
+    try:
+        rmv_properties = rmv.search_parallel()
+
+    except KeyError as e:
+        print("The config file is malformed: {} does not exist".format(e))
+        exit()
+
     end = timeit.default_timer()
     print("It took {} seconds to get back all deets from the Internet".format(end - start))
 
@@ -82,18 +84,22 @@ if __name__ == "__main__":
         exit(errno.ENOENT)
 
     if NEW_RUN:
-        rmv_properties = new_run()
+        rmv_properties = new_run(config)
     else:
-        with open(USER_ALL_CACHE_FILE, 'r') as f:
-            backup_file = f.read()
-            print("This is a re-run so reading deets from backup file: {}".format(backup_file))
-            rmv_properties = util.csv_reader(backup_file)
+        try:
+            with open(USER_ALL_CACHE_FILE, 'r') as f:
+                backup_file = f.read()
+                print("This is a re-run so reading deets from backup file: {}".format(backup_file))
+                rmv_properties = util.csv_reader(backup_file)
+        except FileNotFoundError as e:
+            print("{}. Quitting now ...".format(e))
+            exit(errno.ENOENT)
 
     # Filtering properties
-    filters = [partial(filters.enough_images_filter, threshold=4),
-               partial(filters.date_available_filter, lower_threshold='2020-02-17-00-00-00',
-                       upper_threshold='2020-04-01-00-00-00'),
-               partial(filters.min_rent_filter, threshold=1200)]
+    filters = [partial(filters.enough_images_filter, threshold=6),
+               partial(filters.date_available_filter, lower_threshold='2020-02-25-00-00-00',
+                       upper_threshold='2020-03-01-00-00-00'),
+               partial(filters.min_rent_filter, threshold=2000)]
 
     print("Filtering properties now ...")
     filtered_properties = list(filter(lambda x: all(f(x) for f in filters), rmv_properties))
@@ -105,8 +111,8 @@ if __name__ == "__main__":
     output_file_filtered = USER_OUTPUT_DATA_PATH + '{}_{}_filtered.csv'.format(USER, util.time_now())
 
     if filtered_properties:
-        # no iteration needed for commute times because GMAPS API can take in 25 x 25 (origins x destinations)
-        travel_time.get_commute_times(filtered_properties, config['destinations'])
+        # no list comprehension needed for commute times because GMAPS API can take in 25 x 25 (origins x destinations)
+        travel_time.get_commute_times(filtered_properties, [k for x in config['destinations'] for k in x.keys()])
         [travel_time.get_property_zone(x) for x in filtered_properties]
         [util.rmv_generate_url_from_id(x) for x in filtered_properties]
         util.csv_writer(filtered_properties, output_file_filtered)

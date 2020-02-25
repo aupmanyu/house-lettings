@@ -1,11 +1,11 @@
 import re
+import json
 import datetime
 import dateutil.parser as parser
 import multiprocessing as mp
 import math
 import urllib3
 import requests
-from functools import partial
 from calmjs.parse import es5
 from calmjs.parse.asttypes import Assign, UnaryExpr
 from calmjs.parse.walkers import Walker
@@ -17,38 +17,110 @@ import util
 
 class RmvScraper:
 
-    def __init__(self):
+    def __init__(self, config):
         self.base_url = rmv_constants.BASE_URL
-        self.search_url = self.base_url + rmv_constants.SEARCH_URI
+        self.find_url = self.base_url + rmv_constants.FIND_URI
+        self.bounding_area_url = rmv_constants.SEARCH_URL
         self.max_results_per_page = rmv_constants.MAX_RESULTS_PER_PAGE
+        self.outcode_list = None
+        self._parse_config(config)
+        with open('rmv_outcode_lookup.json') as f:
+            self._outcode_lookup = json.load(f)
 
-    def search_parallel(self, search_postcodes: [str], **kwargs):
-        search_partial = partial(self._search_summary, **kwargs)
-        prop_details_partial = partial(self._get_property_details, **kwargs)
+    def search_parallel(self):
+        self._get_search_areas()
         with mp.get_context("spawn").Pool(processes=15) as pool:
-            properties_id_list = pool.map(search_partial, search_postcodes)
+            properties_id_list = pool.map(self._search_summary, self.outcode_list)
             properties_id_list_flat = [item for sublist in properties_id_list for item in sublist]
             # results = pool.starmap(self.search, search_postcodes, **kwargs)
             print("Got back {} results and getting their profiles now".format(len(properties_id_list_flat)))
             # print(properties_id_list_flat)
-            property_profiles = pool.map(prop_details_partial, properties_id_list_flat)
+            property_profiles = pool.map(self._get_property_details, properties_id_list_flat)
             property_profiles = list(filter(lambda x: True if x is not None else False, property_profiles))
             print("Got back profiles for {} properties".format(len(property_profiles)))
         return property_profiles
 
-    def _search_summary(self, search_postcode: str, **kwargs):
+    def _parse_config(self, config):
+        try:
+            self.destinations = config['destinations']
+            self.max_price = config['maxPrice']
+            self.min_bedrooms = config['minBedrooms']
+            self.keywords = config['keywords']
+            self.radius = config['radius']
+        except KeyError as e:
+            raise("Config file is malformed: {} does not exist".format(e))
+
+    def _get_search_areas(self):
+        print("Geocoding user's destinations ...")
+        [self.destinations[i][k].update({"geocode": util.geocode_address(k)})
+         for i, x in enumerate(self.destinations) for k, v in x.items()]
+
+        headers = {
+            'User-Agent': util.gen_random_user_agent()
+        }
+
+        payload = {
+            "criteria": {
+                "price": self.max_price,
+                "bedrooms": self.min_bedrooms,
+                "propertyType": "ALL",
+                "transactionType": 2 # constant as 2 is for rent
+            },
+            "poiLocations": []
+        }
+
+        for each in self._gen_pois(self.destinations):
+           payload['poiLocations'].append(each)
+
+        print("Calculating which areas meet user's needs ...")
+        r = requests.post(self.bounding_area_url, headers=headers, json=payload)
+
+        if r.status_code == 200:
+            postcode_list = [x["outcode"] for x in json.loads(r.content)["outcodes"]]
+            print("Found {} areas that meet user's needs".format(len(postcode_list)))
+            print("Converting postcodes to outcodes ...")
+            with open('outcode_mappings_not_found.txt', 'a+') as f:
+                self.outcode_list = ["OUTCODE^" + str(self._outcode_lookup[postcode])
+                                     if postcode in self._outcode_lookup else json.dump(postcode + '\n', f)
+                                     for postcode in postcode_list]
+
+                # remove any None resulting from mappings not found
+                self.outcode_list = [x for x in self.outcode_list if x is not None]
+        else:
+            raise requests.exceptions.HTTPError(
+                "An error occurred getting postcodes with error code {}".format(r.status_code))
+
+    @staticmethod
+    def _gen_pois(pois):
+        count = 0
+        for poi in pois:
+            for k, v in poi.items():
+                for mode in v['modes'][0]:
+                    count += 1
+                    rmv_poi = {
+                        "poiId": count,
+                        "travelType": rmv_constants.RmvTransportModes[mode].value.split(','),
+                        "location": {
+                            "lat": v['geocode'][0],
+                            "lng": v['geocode'][1]
+                        },
+                        "travelTime": v['modes'][0][mode] * 60,
+                        "placeType": "W"
+                    }
+                    yield rmv_poi
+
+    def _search_summary(self, search_postcode: str):
         print("Searching through postcode {}".format(search_postcode))
         properties_id_list = []
-        total_results = self._get_total_results(search_postcode, **kwargs)
+        total_results = self._get_total_results(search_postcode)
         index_for_pages = [self.max_results_per_page * i for
                            i in range(0, math.ceil(total_results / self.max_results_per_page))]
 
         for index in index_for_pages:
-            properties_id_list.extend(self._get_properties_summary(search_postcode,
-                                                                   index=index, **kwargs))
+            properties_id_list.extend(self._get_properties_summary(search_postcode, index=index))
         return properties_id_list
 
-    def _get_total_results(self, postcode_identifier: str, **kwargs):
+    def _get_total_results(self, postcode_identifier: str):
         headers = {
             'User-Agent': util.gen_random_user_agent()
         }
@@ -56,19 +128,19 @@ class RmvScraper:
         xpath_total_count = rmv_constants.TOTAL_COUNT_FILTER
         payload = {
             "locationIdentifier": postcode_identifier.replace(' ', ''),
-            "radius": kwargs['radius'] if 'radius' in kwargs else 0,
-            "minBedrooms": kwargs['minBedrooms'] if 'minBedrooms' in kwargs else None,
-            "maxPrice": kwargs['maxPrice'] if 'maxPrice' in kwargs else None,
-            "keywords": ','.join(kwargs['keywords']) if kwargs['keywords'] else None
+            "radius": self.radius,
+            "minBedrooms": self.min_bedrooms,
+            "maxPrice": self.max_price,
+            "keywords": ','.join(self.keywords)
         }
-        data = requests.get(self.search_url, headers=headers, params=payload)
+        data = requests.get(self.find_url, headers=headers, params=payload)
 
         if data.status_code == 200:
             soup = BeautifulSoup(data.text, "html.parser")
             total_count = int((soup.find("span", xpath_total_count)).contents[0])
             return total_count
 
-    def _get_properties_summary(self, postcode_identifier: str, index=None, **kwargs):
+    def _get_properties_summary(self, postcode_identifier: str, index=None):
         """
         Gets the summary page from Rightmove and filters by xpath_property_card HTML div
         to get to the Rightmove-specific unique IDs for each property
@@ -80,15 +152,15 @@ class RmvScraper:
         properties_id_list = []
         payload = {
             "locationIdentifier": postcode_identifier.replace(' ', ''),
-            "radius": kwargs['radius'] if 'radius' in kwargs else 0,
+            "radius": self.radius,
             "index": index,
-            "minBedrooms": kwargs['minBedrooms'] if 'minBedrooms' in kwargs else None,
-            "maxPrice": kwargs['maxPrice'] if 'maxPrice' in kwargs else None,
-            "keywords": ','.join(kwargs['keywords']) if kwargs['keywords'] else None
+            "minBedrooms": self.min_bedrooms,
+            "maxPrice": self.max_price,
+            "keywords": ','.join(self.keywords)
         }
 
         try:
-            data = util.requests_retry_session().get(self.search_url, headers=headers, params=payload)
+            data = util.requests_retry_session().get(self.find_url, headers=headers, params=payload)
             if data.status_code == 200:
                 soup = BeautifulSoup(data.text, "html.parser")
                 properties_soup = soup.find_all("div", xpath_property_card)
@@ -101,8 +173,8 @@ class RmvScraper:
 
         return properties_id_list
 
-    def _get_property_details(self, property_id: str, **kwargs):
-        url = self.base_url + property_id + '.html'
+    def _get_property_details(self, property_id: str):
+        url = self.base_url + '/' + property_id + '.html'
         print("Getting details for property URL: {}".format(url))
         headers = {
             'User-Agent': util.gen_random_user_agent()

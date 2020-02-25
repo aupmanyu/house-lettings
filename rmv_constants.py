@@ -2,8 +2,9 @@ from enum import Enum
 from dataclasses import dataclass
 from collections import namedtuple
 
-BASE_URL = "https://www.rightmove.co.uk/property-to-rent/"
-SEARCH_URI = 'find.html'
+BASE_URL = "https://www.rightmove.co.uk/property-to-rent"
+FIND_URI = '/find.html'
+SEARCH_URL = 'https://where.rightmove.co.uk/search'
 MAX_RESULTS_PER_PAGE = 24
 
 PROPERTY_ID_FILTER = {"class": "l-searchResult is-list"}
@@ -20,7 +21,6 @@ GMAPS_DISTANCE_MATRIX_MAX_ORIGINS = 25
 
 
 Semantic = namedtuple('prop_details', 'rmv_field')
-
 
 @dataclass
 class Coordinates(Enum):
@@ -58,3 +58,11 @@ class RmvPropDetails(Enum):
     image_links: [str] = Semantic('"masterUrl"')
     floorplan_link: str = Semantic('zoomUrls')
     description: str = Semantic('')  # description does not have an identifier in JS scripts
+
+
+class RmvTransportModes(Enum):
+    transit = 'public_transport,driving_train'
+    walking = 'walking'
+    cycling = 'cycling'
+    car = 'driving'
+

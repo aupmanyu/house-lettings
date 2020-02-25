@@ -1,0 +1,44 @@
+{
+  "radius": 0,
+  "maxPrice": 2250,
+  "minBedrooms": 1,
+  "keywords": [],
+  "destinations": [
+    {
+      "Deloitte Digital": {
+        "modes": [
+          {
+            "transit": 30
+          }
+        ]
+      }
+    },
+    {
+      "EC4A 3BZ": {
+        "modes": [
+          {
+            "cycling": 45
+          }
+        ]
+      }
+    },
+    {
+      "Earl's Court": {
+        "modes": [
+          {
+            "driving": 45
+          }
+        ]
+      }
+    },
+    {
+      "SW7 2AZ": {
+        "modes": [
+          {
+            "walking": 60
+          }
+        ]
+      }
+    }
+  ]
+}
