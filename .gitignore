@@ -1,7 +1,14 @@
+# Application specific
+*.html
+*.csv
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
+
+#IDE generated files
+*.idea/
 
 # C extensions
 *.so
@@ -37,7 +44,7 @@ MANIFEST
 pip-log.txt
 pip-delete-this-directory.txt
 
-# Unit test / coverage reports
+# Unit test_user.template / coverage reports
 htmlcov/
 .tox/
 .nox/
