@@ -64,5 +64,5 @@ class RmvTransportModes(Enum):
     transit = 'public_transport,driving_train'
     walking = 'walking'
     cycling = 'cycling'
-    car = 'driving'
+    driving = 'driving'
 
