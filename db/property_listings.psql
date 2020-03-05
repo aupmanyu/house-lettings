@@ -1,0 +1,17 @@
+CREATE TABLE IF NOT EXISTS property_listings (
+    prop_uuid uuid PRIMARY KEY,
+    geo_lat float,
+    geo_long float,
+    postcode varchar(50),
+    rent_pcm float,
+    beds integer,
+    date_available timestamp,
+    website_unique_id varchar(50),
+    url varchar(100),
+    image_links jsonb,
+    floorplan_links jsonb,
+    estate_agent varchar(100),
+    estate_agent_address varchar(200),
+    description text,
+    zone_best_guess int
+);

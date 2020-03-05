@@ -139,6 +139,7 @@ def rmv_generate_url_from_id(property_dict: [dict]):
                            + 'property-{}'.format(property_dict[rmv_constants.RmvPropDetails.rmv_unique_link.name]) \
                            + '.html'
 
+
 def chunks(lst, n):
     """Yield successive indices for n-sized chunks from lst."""
     for i in range(0, len(lst), n):

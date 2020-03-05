@@ -1,11 +1,15 @@
 import re
+import uuid
 import json
 import datetime
 import dateutil.parser as parser
 import multiprocessing as mp
 import math
 import urllib3
+
 import requests
+import psycopg2
+import psycopg2.extras
 from calmjs.parse import es5
 from calmjs.parse.asttypes import Assign, UnaryExpr
 from calmjs.parse.walkers import Walker
@@ -38,6 +42,8 @@ class RmvScraper:
             property_profiles = pool.map(self._get_property_details, properties_id_list_flat)
             property_profiles = list(filter(lambda x: True if x is not None else False, property_profiles))
             print("Got back profiles for {} properties".format(len(property_profiles)))
+
+        [self._insert_to_db(x) for x in property_profiles]
         return property_profiles
 
     def _parse_config(self, config):
@@ -247,8 +253,12 @@ class RmvScraper:
                                     (property_listing[field.name]).append(node.right.value.replace('"', ''))
                                 else:
                                     property_listing[field.name] = [node.right.value.replace('"', '')]
-                            elif field.name == rmv_constants.RmvPropDetails.floorplan_link.name:
+                            elif field.name == rmv_constants.RmvPropDetails.floorplan_links.name:
                                 property_listing[field.name] = [link.value.replace('"', '') for link in node.right.items]
+                            elif field.name == rmv_constants.RmvPropDetails.date_available.name:
+                                property_listing[field.name] = datetime.datetime.strftime(
+                                    datetime.datetime.strptime(str(node.right.value).replace('"', ''),
+                                                               "%Y-%m-%d-%H-%M-%S"), "%Y-%m-%d %H:%M:%S")
                             else:
                                 if isinstance(node.right, UnaryExpr):
                                     # node.right.value.value because float() only takes str or number
@@ -262,8 +272,9 @@ class RmvScraper:
             match = re.search('(\d+/\d+/\d+)', description_text)
             if match:
                 property_listing[rmv_constants.RmvPropDetails.date_available.name] = \
-                    datetime.datetime.strftime(parser.parse(match.group(1)), "%Y-%m-%d-%H-%M-%S")
+                    datetime.datetime.strftime(parser.parse(match.group(1)), "%Y-%m-%d %H:%M:%S")
             print("Finished parsing property URL {}".format(url))
+            self._standardise_listing(property_listing)
             return property_listing
 
             # if date_available_filter(property_listing, '2020-02-04-00-00-00', '2020-04-01-00-00-00'):
@@ -282,3 +293,42 @@ class RmvScraper:
             print("Some other error occurred parsing data from url {}: {}".format(url, e))
             pass
 
+    def _standardise_listing(self, property_profile: dict):
+        self._add_uuid_listing(property_profile)
+        desired_keys = set(map(lambda x: x.name, rmv_constants.RmvPropDetails))
+        existing_keys = set(property_profile.keys())
+        non_existing_keys = desired_keys - existing_keys
+        for key in non_existing_keys:
+            property_profile[key] = None
+        return property_profile
+
+    @staticmethod
+    def _add_uuid_listing(property_profile: dict):
+        property_profile[rmv_constants.RmvPropDetails.prop_uuid.name] = uuid.uuid4()
+
+    def _insert_to_db(self, property_profile: dict):
+        insert_string = """
+        INSERT INTO property_listings
+        (prop_uuid, geo_lat, geo_long, postcode, rent_pcm,
+        beds, date_available, website_unique_id, image_links,
+        floorplan_links, estate_agent, estate_agent_address, description) 
+        VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) 
+        """
+        psycopg2.extras.register_uuid()
+        with psycopg2.connect(dbname="Aashish", user="Aashish") as conn:
+            with conn.cursor() as curs:
+                curs.execute(insert_string,
+                             (property_profile[rmv_constants.RmvPropDetails.prop_uuid.name],
+                              property_profile[rmv_constants.RmvPropDetails.geo_lat.name],
+                              property_profile[rmv_constants.RmvPropDetails.geo_long.name],
+                              property_profile[rmv_constants.RmvPropDetails.postcode.name],
+                              property_profile[rmv_constants.RmvPropDetails.rent_pcm.name],
+                              property_profile[rmv_constants.RmvPropDetails.beds.name],
+                              property_profile[rmv_constants.RmvPropDetails.date_available.name],
+                              property_profile[rmv_constants.RmvPropDetails.rmv_unique_link.name],
+                              json.dumps(property_profile[rmv_constants.RmvPropDetails.image_links.name]),
+                              json.dumps(property_profile[rmv_constants.RmvPropDetails.floorplan_links.name]),
+                              property_profile[rmv_constants.RmvPropDetails.estate_agent.name],
+                              property_profile[rmv_constants.RmvPropDetails.estate_agent_address.name],
+                              property_profile[rmv_constants.RmvPropDetails.description.name]
+                              ))

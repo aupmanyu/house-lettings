@@ -1,0 +1,13 @@
+CREATE TABLE IF NOT EXISTS filtered_properties (
+    user_uuid uuid REFERENCES users(user_uuid),
+    prop_uuid uuid REFERENCES property_listings(prop_uuid),
+    website_unique_id varchar(50) UNIQUE,
+    url varchar(100),
+    date_sent_to_user timestamp,
+    user_favourites bool,
+    avg_travel_time_transit float,
+    avg_travel_time_walking float,
+    avg_travel_time_bicycling float,
+    avg_travel_time_driving float,
+    augment jsonb
+    );

@@ -1,4 +1,5 @@
-from enum import Enum
+from uuid import UUID
+from enum import Enum, auto
 from dataclasses import dataclass
 from collections import namedtuple
 
@@ -43,21 +44,31 @@ class Coordinates(Enum):
 #         image_links: [str] = val
 #         floorplan_link: str = val
 
+class AutoEnum(Enum):
+    def _generate_next_value_(name, start, count, last_values):
+        # Always unique identifier that refers to a Python object and hence unlikely to turn up anywhere else on RMV
+        return object()
 
-@dataclass
-class RmvPropDetails(Enum):
+
+# NB: auto() needed so that Enum can distinguish them as individual items (using empty string, for e.g., doesn't work
+# as Enum considers items as aliases of each other.
+# TODO: The auto() is inside the Semantic() encapsulation since rest of code uses this to parse details back from RMV.
+#  Should remove this.
+class RmvPropDetails(AutoEnum):
+    zone_best_guess: int = Semantic(auto())  # zone is not available in JS scripts and derived from another source
+    prop_uuid: UUID = Semantic(auto())
     geo_lat: float = Semantic('"latitude"')
     geo_long: float = Semantic('"longitude"')
     postcode: str = Semantic('"postcode"')
     rent_pcm: float = Semantic('"price"')
     beds: int = Semantic('"beds"')
-    date_available: int = Semantic('"aed"')
-    rmv_unique_link: int = Semantic('"propertyId"')
+    date_available: str = Semantic('"aed"')
+    rmv_unique_link: str = Semantic('"propertyId"')
     estate_agent: str = Semantic('"brandName"')
-    estate_agent_address = Semantic('"displayAddress"')
+    estate_agent_address: str = Semantic('"displayAddress"')
     image_links: [str] = Semantic('"masterUrl"')
-    floorplan_link: str = Semantic('zoomUrls')
-    description: str = Semantic('')  # description does not have an identifier in JS scripts
+    floorplan_links: [str] = Semantic('zoomUrls')
+    description: str = Semantic(auto())  # description does not have an identifier in JS scripts
 
 
 class RmvTransportModes(Enum):
