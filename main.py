@@ -10,7 +10,7 @@ import filters
 import travel_time
 import rmv_constants
 
-USER = 'test_user.template'
+USER = 'test_user'
 NEW_RUN = True
 
 # ------------------------- // -------------------------
@@ -72,17 +72,7 @@ def remove_duplicates(cache_file: str, curr_properties_list: list):
         return curr_properties_list
 
 
-if __name__ == "__main__":
-    try:
-        print("Trying to open user {} config file from this location {}".format(USER, USER_CONFIG_PATH))
-        with open(USER_CONFIG_PATH, 'r') as data_file:
-            config = json.load(data_file)
-    except FileNotFoundError:
-        print("Unable to find a config file for user {} at this location: {}. "
-              "Please make sure the file exists at the right location before running the code again"
-              .format(USER, USER_CONFIG_PATH))
-        exit(errno.ENOENT)
-
+def main(config):
     if NEW_RUN:
         rmv_properties = new_run(config)
     else:
@@ -96,13 +86,13 @@ if __name__ == "__main__":
             exit(errno.ENOENT)
 
     # Filtering properties
-    filters = [partial(filters.enough_images_filter, threshold=6),
-               partial(filters.date_available_filter, lower_threshold='2020-02-25-00-00-00',
-                       upper_threshold='2020-03-01-00-00-00'),
-               partial(filters.min_rent_filter, threshold=2000)]
+    filters_to_use = [partial(filters.enough_images_filter, threshold=6),
+                      partial(filters.date_available_filter, lower_threshold='2020-02-25-00-00-00',
+                              upper_threshold='2020-03-01-00-00-00'),
+                      partial(filters.min_rent_filter, threshold=2000)]
 
     print("Filtering properties now ...")
-    filtered_properties = list(filter(lambda x: all(f(x) for f in filters), rmv_properties))
+    filtered_properties = list(filter(lambda x: all(f(x) for f in filters_to_use), rmv_properties))
     print("Retained {} properties after filtering".format(len(filtered_properties)))
 
     # Remove duplicates
@@ -121,3 +111,16 @@ if __name__ == "__main__":
         print("FINAL RESULT: {} properties stored at {}".format(len(filtered_properties), output_file_filtered))
     else:
         print("FINAL RESULT: No new properties so not writing to a file. Thanks for running!")
+
+
+if __name__ == '__main__':
+    try:
+        print("Trying to open user {} config file from this location {}".format(USER, USER_CONFIG_PATH))
+        with open(USER_CONFIG_PATH, 'r') as data_file:
+            config = json.load(data_file)
+    except FileNotFoundError:
+        print("Unable to find a config file for user {} at this location: {}. "
+              "Please make sure the file exists at the right location before running the code again"
+              .format(USER, USER_CONFIG_PATH))
+        exit(errno.ENOENT)
+    main(config)
