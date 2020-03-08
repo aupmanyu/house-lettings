@@ -9,9 +9,9 @@ def keyword_filter(keywords: list, description: str):
 
 def date_available_filter(property_listing, lower_threshold, upper_threshold):
     available_date = datetime.datetime.strptime(property_listing[rmv_constants.RmvPropDetails.date_available.name],
-                                                "%Y-%m-%d-%H-%M-%S")
-    lower_date_threshold = datetime.datetime.strptime(lower_threshold, "%Y-%m-%d-%H-%M-%S")
-    upper_date_threshold = datetime.datetime.strptime(upper_threshold, "%Y-%m-%d-%H-%M-%S")
+                                                "%Y-%m-%d %H:%M:%S")
+    lower_date_threshold = datetime.datetime.strptime(lower_threshold, "%Y-%m-%d %H:%M:%S")
+    upper_date_threshold = datetime.datetime.strptime(upper_threshold, "%Y-%m-%d %H:%M:%S")
 
     if not (lower_date_threshold <= available_date <= upper_date_threshold):
         return False

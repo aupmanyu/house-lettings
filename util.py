@@ -1,5 +1,6 @@
 import os
 import csv
+import uuid
 import datetime
 import requests
 from requests.adapters import HTTPAdapter
@@ -7,12 +8,14 @@ from urllib3.util.retry import Retry
 import random
 
 import googlemaps
-
 import rmv_constants
 
 gmaps_key = os.environ['GMAPS_KEY']
 gmaps = googlemaps.Client(key=gmaps_key)
 
+
+def gen_uuid():
+    return uuid.uuid4()
 
 def time_now():
     return datetime.datetime.strftime(datetime.datetime.now(), "%Y_%m_%d_%H_%M_%S")
@@ -134,8 +137,8 @@ def csv_writer(data, out_file):
             writer.writerow(each)
 
 
-def rmv_generate_url_from_id(property_dict: [dict]):
-    property_dict['url'] = rmv_constants.BASE_URL + '/' \
+def rmv_generate_url_from_id(property_dict: dict):
+    return rmv_constants.BASE_URL + '/' \
                            + 'property-{}'.format(property_dict[rmv_constants.RmvPropDetails.rmv_unique_link.name]) \
                            + '.html'
 

@@ -13,5 +13,6 @@ CREATE TABLE IF NOT EXISTS property_listings (
     estate_agent varchar(100),
     estate_agent_address varchar(200),
     description text,
-    zone_best_guess int
+    zone_best_guess int,
+    date_written_to_db timestamp
 );

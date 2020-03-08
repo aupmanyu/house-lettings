@@ -64,6 +64,7 @@ class RmvPropDetails(AutoEnum):
     beds: int = Semantic('"beds"')
     date_available: str = Semantic('"aed"')
     rmv_unique_link: str = Semantic('"propertyId"')
+    url: str = Semantic(auto())  # url is not available in JS scripts so generated elsewhere
     estate_agent: str = Semantic('"brandName"')
     estate_agent_address: str = Semantic('"displayAddress"')
     image_links: [str] = Semantic('"masterUrl"')
@@ -74,6 +75,6 @@ class RmvPropDetails(AutoEnum):
 class RmvTransportModes(Enum):
     transit = 'public_transport,driving_train'
     walking = 'walking'
-    cycling = 'cycling'
+    bicycling = 'cycling'
     driving = 'driving'
 
