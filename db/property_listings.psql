@@ -3,6 +3,7 @@ CREATE TABLE IF NOT EXISTS property_listings (
     geo_lat float,
     geo_long float,
     postcode varchar(50),
+    street_address varchar(200),
     rent_pcm float,
     beds integer,
     date_available timestamp,

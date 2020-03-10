@@ -1,5 +1,7 @@
 {
   "email": "test@test.com",
+  "date_low": "2020-03-10 00:00:00",
+  "date_high": "2020-25-10 00:00:00",
   "radius": 0,
   "maxPrice": 2250,
   "minBedrooms": 1,
@@ -18,7 +20,7 @@
       "EC4A 3BZ": {
         "modes": [
           {
-            "cycling": 45
+            "bicycling": 45
           }
         ]
       }

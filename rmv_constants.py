@@ -60,6 +60,7 @@ class RmvPropDetails(AutoEnum):
     geo_lat: float = Semantic('"latitude"')
     geo_long: float = Semantic('"longitude"')
     postcode: str = Semantic('"postcode"')
+    street_address: str = Semantic(auto())
     rent_pcm: float = Semantic('"price"')
     beds: int = Semantic('"beds"')
     date_available: str = Semantic('"aed"')

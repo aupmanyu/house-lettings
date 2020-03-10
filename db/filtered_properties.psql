@@ -3,7 +3,7 @@ CREATE TYPE prop_status AS ENUM ('liked', 'disliked', 'superliked');
 CREATE TABLE IF NOT EXISTS filtered_properties (
     user_uuid uuid REFERENCES users(user_uuid),
     prop_uuid uuid REFERENCES property_listings(prop_uuid),
-    website_unique_id varchar(50) UNIQUE,
+    website_unique_id varchar(50),
     url varchar(100),
     date_sent_to_user timestamp,
     user_favourites prop_status,
@@ -11,5 +11,6 @@ CREATE TABLE IF NOT EXISTS filtered_properties (
     avg_travel_time_walking float,
     avg_travel_time_bicycling float,
     avg_travel_time_driving float,
-    augment jsonb
+    augment jsonb,
+    UNIQUE(user_uuid, website_unique_id)
     );

@@ -166,8 +166,15 @@ def main(config):
     avg_travel_time_bicycling, avg_travel_time_driving,
     augment)
     VALUES %s
-    ON CONFLICT (website_unique_id)
+    ON CONFLICT (user_uuid, website_unique_id)
     DO NOTHING
+    """
+
+    insert_many_zone_address_query = """
+    UPDATE property_listings
+    SET (street_address, zone_best_guess) = (data.street_address, data.zone_best_guess)
+    FROM (VALUES %s) AS data(street_address, zone_best_guess, prop_uuid)
+    WHERE property_listings.prop_uuid = data.prop_uuid
     """
 
     # Remove duplicates
@@ -190,6 +197,11 @@ def main(config):
                 psycopg2.extras.execute_values(curs, insert_many_filtered_prop_query,
                                                [tuple(x.values()) for x in standardised_filtered_listing],
                                                template=None)
+
+                psycopg2.extras.execute_values(curs, insert_many_zone_address_query,
+                                               [(x[rmv_constants.RmvPropDetails.street_address.name],
+                                                x[rmv_constants.RmvPropDetails.zone_best_guess.name],
+                                                x[rmv_constants.RmvPropDetails.prop_uuid.name]) for x in filtered_properties])
 
         print("Stored {} new filtered properties in DB".format(len(standardised_filtered_listing)))
 

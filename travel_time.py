@@ -12,7 +12,7 @@ gmaps = googlemaps.Client(key=gmaps_key)
 
 def get_commute_times(properties: [dict], destinations: [str]):
     distance_matrix = {}
-    modes = ['transit', 'walking', 'bicycling']
+    modes = [x.name for x in rmv_constants.RmvTransportModes]
     origins = [[x[rmv_constants.RmvPropDetails.geo_lat.name], x[rmv_constants.RmvPropDetails.geo_long.name]]
                for x in properties]
 
@@ -31,6 +31,7 @@ def get_commute_times(properties: [dict], destinations: [str]):
 
     for k, v in distance_matrix.items():
         for idx, val in enumerate(v['rows']):
+            properties[idx][rmv_constants.RmvPropDetails.street_address.name] = v['origin_addresses'][idx]
             if 'augment' not in properties[idx]:
                 properties[idx]['augment'] = {}
             travel_times = [{dest: {k: (val['elements'][i]['duration']['value']) / 60}}  # in minutes
@@ -39,8 +40,12 @@ def get_commute_times(properties: [dict], destinations: [str]):
             if 'travel_time' not in properties[idx]['augment']:
                 properties[idx]['augment']['travel_time'] = travel_times
             else:
-                for i, data in enumerate(properties[idx]['augment']['travel_time']):
-                    [properties[idx]['augment']['travel_time'][i][k].update(travel_times[i][k]) for k in data.keys()]
+                try:
+                    for i, data in enumerate(properties[idx]['augment']['travel_time']):
+                        [properties[idx]['augment']['travel_time'][i][k].update(travel_times[i][k]) for k in data.keys()]
+                except AttributeError:
+                    print("Google didn't come back with a travel time so skipping ...")
+                    pass
 
             properties[idx]['avg_travel_time_{}'.format(k)] = (statistics.mean([v[k] for x in travel_times
                                                                                 if x is not None
