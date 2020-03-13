@@ -30,6 +30,7 @@ def search():
 @cross_origin()
 def update_prop_status():
     data = request.json
+    print("Received data to update status of property {} to {}".format(data['slug'], data['status']))
     main.update_prop_status(data['slug'], data['status'])
     return "Success", 200
 

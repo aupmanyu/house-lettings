@@ -331,7 +331,7 @@ class RmvScraper:
                      property_profile[rmv_constants.RmvPropDetails.rmv_unique_link.name]))
 
         psycopg2.extras.register_uuid()
-        with psycopg2.connect(rmv_constants.DB_URL, sslmode='require') as conn:
+        with psycopg2.connect(rmv_constants.DB_URL, sslmode='allow') as conn:
             with conn.cursor() as curs:
                 try:
                     curs.execute(insert_string,
@@ -351,6 +351,6 @@ class RmvScraper:
                                   property_profile[rmv_constants.RmvPropDetails.url.name],
                                   datetime.datetime.strftime(datetime.datetime.now(), "%Y-%m-%d %H:%M:%S")
                                   ))
-                except psycopg2.errors as e:
+                except Exception as e:
                     print("Could not store property with RMV ID {}: ".
                           format(property_profile[rmv_constants.RmvPropDetails.rmv_unique_link.name], e))

@@ -10,6 +10,7 @@ from functools import partial
 import requests
 import psycopg2
 import psycopg2.extras
+import psycopg2.errors
 
 from rmv_scraper import RmvScraper
 
@@ -64,7 +65,7 @@ def get_current_filtered_props_id(user_uuid: uuid.UUID):
         WHERE user_uuid = %s
         """
 
-    with psycopg2.connect(rmv_constants.DB_URL, sslmode='require') as conn:
+    with psycopg2.connect(rmv_constants.DB_URL, sslmode='allow') as conn:
         with conn.cursor() as curs:
             curs.execute(get_prev_results_query, (user_uuid,))
             prev_filtered_properties = [x[0] for x in curs.fetchall()]
@@ -131,7 +132,7 @@ def upsert_user_db(user_config):
        RETURNING (user_uuid)
        """
 
-    with psycopg2.connect(rmv_constants.DB_URL, sslmode='require') as conn:
+    with psycopg2.connect(rmv_constants.DB_URL, sslmode='allow') as conn:
         with conn.cursor() as curs:
             curs.execute(insert_user_command,
                          (user_uuid,
@@ -218,7 +219,7 @@ def write_webflow_cms(final_properties_list, user_config):
               format(final_properties_list[rmv_constants.RmvPropDetails.rmv_unique_link.name]))
         content = json.loads(r.content)
 
-        with psycopg2.connect(rmv_constants.DB_URL, sslmode='require') as conn:
+        with psycopg2.connect(rmv_constants.DB_URL, sslmode='allow') as conn:
             with conn.cursor() as curs:
                 curs.execute(webflow_db_mapping_query,
                              (final_properties_list[rmv_constants.RmvPropDetails.prop_uuid.name], content['_id']))
@@ -241,7 +242,7 @@ def update_prop_status(prop_id, status):
     RETURNING website_unique_id
     """
 
-    with psycopg2.connect(rmv_constants.DB_URL, sslmode='require') as conn:
+    with psycopg2.connect(rmv_constants.DB_URL, sslmode='allow') as conn:
         with conn.cursor() as curs:
             curs.execute(get_cms_item_id_query, (prop_id,))
             cms_item_id = curs.fetchone()
@@ -326,26 +327,29 @@ def main(config):
 
         standardised_filtered_listing = [standardise_filtered_listing(user_uuid, x) for x in filtered_properties]
 
-        with psycopg2.connect(rmv_constants.DB_URL, sslmode='require') as conn:
-            with conn.cursor() as curs:
-                template = "%(user_uuid)s,%(prop_uuid)s,%(website_unique_id)s,%(url)s," \
-                           "%(date_sent_to_user)s,%(avg_travel_time_transit)s," \
-                           "%(avg_travel_time_walking)s,%(avg_travel_time_bicycling)s," \
-                           "%(avg_travel_time_driving)s,%(augment)s"
-                # print(curs.mogrify(template, standardised_filtered_listing[0]))
-                psycopg2.extras.execute_values(curs, insert_many_filtered_prop_query,
-                                               [tuple(x.values()) for x in standardised_filtered_listing],
-                                               template=None)
+        try:
+            with psycopg2.connect(rmv_constants.DB_URL, sslmode='allow') as conn:
+                with conn.cursor() as curs:
+                    template = "%(user_uuid)s,%(prop_uuid)s,%(website_unique_id)s,%(url)s," \
+                               "%(date_sent_to_user)s,%(avg_travel_time_transit)s," \
+                               "%(avg_travel_time_walking)s,%(avg_travel_time_bicycling)s," \
+                               "%(avg_travel_time_driving)s,%(augment)s"
+                    # print(curs.mogrify(template, standardised_filtered_listing[0]))
+                    psycopg2.extras.execute_values(curs, insert_many_filtered_prop_query,
+                                                   [tuple(x.values()) for x in standardised_filtered_listing],
+                                                   template=None)
 
-                psycopg2.extras.execute_values(curs, insert_many_zone_address_query,
-                                               [(x[rmv_constants.RmvPropDetails.street_address.name],
-                                                 x[rmv_constants.RmvPropDetails.zone_best_guess.name],
-                                                 x[rmv_constants.RmvPropDetails.prop_uuid.name])
-                                                for x in filtered_properties])
+                    psycopg2.extras.execute_values(curs, insert_many_zone_address_query,
+                                                   [(x[rmv_constants.RmvPropDetails.street_address.name],
+                                                     x[rmv_constants.RmvPropDetails.zone_best_guess.name],
+                                                     x[rmv_constants.RmvPropDetails.prop_uuid.name])
+                                                    for x in filtered_properties])
+                    print("Stored {} new filtered properties in DB.".format(len(standardised_filtered_listing)))
+                    [write_webflow_cms(x, config) for x in filtered_properties]
 
-        print("Stored {} new filtered properties in DB.".format(len(standardised_filtered_listing)))
+        except Exception as e:
+            print("Could not store some properties in DB: {}".format(e))
 
-        [write_webflow_cms(x, config) for x in filtered_properties]
         print("All done now! Thanks for running!")
 
     else:

@@ -17,6 +17,7 @@ flask = "*"
 flask-executor = "*"
 psycopg2 = "*"
 flask-cors = "*"
+gunicorn = "*"
 
 [requires]
 python_version = "3.7"
