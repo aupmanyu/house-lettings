@@ -16,6 +16,7 @@ python-dateutil = "*"
 flask = "*"
 flask-executor = "*"
 psycopg2 = "*"
+flask-cors = "*"
 
 [requires]
 python_version = "3.7"

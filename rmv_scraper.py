@@ -10,6 +10,7 @@ import urllib3
 import requests
 import psycopg2
 import psycopg2.extras
+import psycopg2.errors
 from calmjs.parse import es5
 from calmjs.parse.asttypes import Assign, UnaryExpr
 from calmjs.parse.walkers import Walker
@@ -50,7 +51,7 @@ class RmvScraper:
     def _parse_config(self, config):
         try:
             self.destinations = config['destinations']
-            self.max_price = config['maxPrice']
+            self.max_price = int(config['maxPrice'])
             self.min_bedrooms = config['minBedrooms']
             self.keywords = config['keywords']
             self.radius = config['radius']
@@ -332,20 +333,24 @@ class RmvScraper:
         psycopg2.extras.register_uuid()
         with psycopg2.connect(dbname="Aashish", user="Aashish") as conn:
             with conn.cursor() as curs:
-                curs.execute(insert_string,
-                             (property_profile[rmv_constants.RmvPropDetails.prop_uuid.name],
-                              property_profile[rmv_constants.RmvPropDetails.geo_lat.name],
-                              property_profile[rmv_constants.RmvPropDetails.geo_long.name],
-                              property_profile[rmv_constants.RmvPropDetails.postcode.name],
-                              property_profile[rmv_constants.RmvPropDetails.rent_pcm.name],
-                              property_profile[rmv_constants.RmvPropDetails.beds.name],
-                              property_profile[rmv_constants.RmvPropDetails.date_available.name],
-                              property_profile[rmv_constants.RmvPropDetails.rmv_unique_link.name],
-                              json.dumps(property_profile[rmv_constants.RmvPropDetails.image_links.name]),
-                              json.dumps(property_profile[rmv_constants.RmvPropDetails.floorplan_links.name]),
-                              property_profile[rmv_constants.RmvPropDetails.estate_agent.name],
-                              property_profile[rmv_constants.RmvPropDetails.estate_agent_address.name],
-                              property_profile[rmv_constants.RmvPropDetails.description.name],
-                              property_profile[rmv_constants.RmvPropDetails.url.name],
-                              datetime.datetime.strftime(datetime.datetime.now(), "%Y-%m-%d %H:%M:%S")
-                              ))
+                try:
+                    curs.execute(insert_string,
+                                 (property_profile[rmv_constants.RmvPropDetails.prop_uuid.name],
+                                  property_profile[rmv_constants.RmvPropDetails.geo_lat.name],
+                                  property_profile[rmv_constants.RmvPropDetails.geo_long.name],
+                                  property_profile[rmv_constants.RmvPropDetails.postcode.name],
+                                  property_profile[rmv_constants.RmvPropDetails.rent_pcm.name],
+                                  property_profile[rmv_constants.RmvPropDetails.beds.name],
+                                  property_profile[rmv_constants.RmvPropDetails.date_available.name],
+                                  property_profile[rmv_constants.RmvPropDetails.rmv_unique_link.name],
+                                  json.dumps(property_profile[rmv_constants.RmvPropDetails.image_links.name]),
+                                  json.dumps(property_profile[rmv_constants.RmvPropDetails.floorplan_links.name]),
+                                  property_profile[rmv_constants.RmvPropDetails.estate_agent.name],
+                                  property_profile[rmv_constants.RmvPropDetails.estate_agent_address.name],
+                                  property_profile[rmv_constants.RmvPropDetails.description.name],
+                                  property_profile[rmv_constants.RmvPropDetails.url.name],
+                                  datetime.datetime.strftime(datetime.datetime.now(), "%Y-%m-%d %H:%M:%S")
+                                  ))
+                except psycopg2.errors as e:
+                    print("Could not store property with RMV ID {}: ".
+                          format(property_profile[rmv_constants.RmvPropDetails.rmv_unique_link.name], e))

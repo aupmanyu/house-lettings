@@ -2,6 +2,7 @@ import datetime
 
 import rmv_constants
 
+
 def keyword_filter(keywords: list, description: str):
     if all(x in description for x in keywords):
         return True

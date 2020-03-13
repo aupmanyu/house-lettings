@@ -15,6 +15,7 @@ import filters
 import travel_time
 import rmv_constants
 
+DEBUG = False
 USER = 'test_user'
 NEW_RUN = True
 
@@ -40,15 +41,14 @@ def new_search(config):
     end = timeit.default_timer()
     print("It took {} seconds to get back all deets from the Internet".format(end - start))
 
-    ##### FOR DEBUGGING #####
+    if DEBUG:
+        output_file_all_data = USER_OUTPUT_DATA_PATH + '{}_{}.csv'.format(USER, util.time_now())
+        util.csv_writer(rmv_properties, output_file_all_data)
+        print("Created a backup of returned deets in file {}".format(output_file_all_data))
 
-    output_file_all_data = USER_OUTPUT_DATA_PATH + '{}_{}.csv'.format(USER, util.time_now())
-    util.csv_writer(rmv_properties, output_file_all_data)
-    print("Created a backup of returned deets in file {}".format(output_file_all_data))
-
-    with open(USER_OUTPUT_DATA_PATH + '.lastrunall', 'w') as f:
-        f.write(output_file_all_data)
-        print("Updated cache file with backup location for faster access next time!")
+        with open(USER_OUTPUT_DATA_PATH + '.lastrunall', 'w') as f:
+            f.write(output_file_all_data)
+            print("Updated cache file with backup location for faster access next time!")
 
     return rmv_properties
 
@@ -70,21 +70,41 @@ def get_current_filtered_props_id(user_uuid: uuid.UUID):
 def remove_duplicates(user_uuid: uuid.UUID, curr_properties_list: list):
     print("Identifying any duplicates from previous runs ...")
 
+    indexed_curr_properties_list = [{x[rmv_constants.RmvPropDetails.rmv_unique_link.name]: x} for x in
+                                    curr_properties_list]
+
     prev_filtered_properties_id = set(get_current_filtered_props_id(user_uuid))
     curr_filtered_properties_id = set(x[rmv_constants.RmvPropDetails.rmv_unique_link.name]
                                       for x in curr_properties_list)
+
+    # This is because sometimes code goes through the same RMV ID twice possibly because RMV returns same property
+    # for different areas. This guaranteed positive or 0 since it is len(list) - len(set) and set is unique
+    curr_properties_duplicates = len(curr_properties_list) - len(curr_filtered_properties_id)
+
     duplicate_properties_id = curr_filtered_properties_id.intersection(prev_filtered_properties_id)
 
-    for i, each in enumerate(curr_properties_list):
-        for k, v in each.items():
-            if k == rmv_constants.RmvPropDetails.rmv_unique_link.name:
-                if v in duplicate_properties_id:
-                    del curr_properties_list[i]
-                break
+    unique_properties = [list(x.values())[0] for x in indexed_curr_properties_list
+                         if list(x.keys())[0] not in duplicate_properties_id]
 
-    print("Removed {} duplicates from previous runs".format(len(duplicate_properties_id)))
+    # for each in indexed_curr_properties_list:
+    #     if list(each.keys())[0] not in duplicate_properties_id:
+    #         unique_properties.append(list(each.values())[0])
+    #
+    # for prop_id in duplicate_properties_id:
+    #     for each in indexed_curr_properties_list:
+    #         if prop_id in each.keys():
+    #             indexed_curr_properties_list.pop()
 
-    return curr_properties_list
+    # for i, each in enumerate(curr_properties_list):
+    #     for k, v in each.items():
+    #         if k == rmv_constants.RmvPropDetails.rmv_unique_link.name:
+    #             if v in duplicate_properties_id:
+    #                 del curr_properties_list[i]
+    #             break
+
+    print("Removed {} duplicates from previous runs".format(len(duplicate_properties_id) + curr_properties_duplicates))
+
+    return unique_properties
 
 
 def upsert_user_db(config):
@@ -93,14 +113,16 @@ def upsert_user_db(config):
 
     insert_user_command = """
        INSERT INTO users 
-       (user_uuid, email, max_rent, min_beds, keywords, destinations)
-       VALUES (%s, %s, %s, %s, %s, %s)
+       (user_uuid, email, max_rent, min_beds, keywords, destinations, date_low, date_high)
+       VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
        ON CONFLICT (email)
        DO UPDATE
         SET max_rent = EXCLUDED.max_rent,
             min_beds = EXCLUDED.min_beds,
             keywords = EXCLUDED.keywords,
-            destinations = EXCLUDED.destinations
+            destinations = EXCLUDED.destinations,
+            date_low = EXCLUDED.date_low,
+            date_high = EXCLUDED.date_high
        RETURNING (user_uuid)
        """
 
@@ -108,11 +130,13 @@ def upsert_user_db(config):
         with conn.cursor() as curs:
             curs.execute(insert_user_command,
                          (user_uuid,
-                         config['email'],
-                         config['maxPrice'],
-                         config['minBedrooms'],
-                         ','.join(config['keywords']),
-                         json.dumps(config['destinations'])))
+                          config['email'],
+                          config['maxPrice'],
+                          config['minBedrooms'],
+                          ','.join(config['keywords']),
+                          json.dumps(config['destinations']),
+                          config['date_low'],
+                          config['date_high']))
             user_uuid = curs.fetchone()[0]
 
     print("Stored/updated user details with email {} in DB. UUID is {}".format(config['email'], user_uuid))
@@ -200,16 +224,18 @@ def main(config):
 
                 psycopg2.extras.execute_values(curs, insert_many_zone_address_query,
                                                [(x[rmv_constants.RmvPropDetails.street_address.name],
-                                                x[rmv_constants.RmvPropDetails.zone_best_guess.name],
-                                                x[rmv_constants.RmvPropDetails.prop_uuid.name]) for x in filtered_properties])
+                                                 x[rmv_constants.RmvPropDetails.zone_best_guess.name],
+                                                 x[rmv_constants.RmvPropDetails.prop_uuid.name]) for x in
+                                                filtered_properties])
 
-        print("Stored {} new filtered properties in DB".format(len(standardised_filtered_listing)))
+        print("Stored {} new filtered properties in DB. Thanks for running!".format(len(standardised_filtered_listing)))
 
     else:
-        print("FINAL RESULT: No new properties so not writing to a file. Thanks for running!")
+        print("FINAL RESULT: No new properties so not writing to DB. Thanks for running!")
 
 
 if __name__ == '__main__':
+    DEBUG = True
     try:
         print("Trying to open user {} config file from this location {}".format(USER, USER_CONFIG_PATH))
         with open(USER_CONFIG_PATH, 'r') as data_file:
