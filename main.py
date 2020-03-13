@@ -247,7 +247,7 @@ def update_prop_status(prop_id, status):
             curs.execute(get_cms_item_id_query, (prop_id,))
             cms_item_id = curs.fetchone()
             curs.execute(update_property_status_query, (status, prop_id))
-            website_id = curs.fetchone()
+            website_id = curs.fetchone()[0]
             print("Updated status of property {} in DB to {}".format(website_id, status))
 
     url = "https://api.webflow.com/collections/{}/items/{}?live=true".format(WEBFLOW_COLLECTION_ID, cms_item_id[0])
@@ -260,7 +260,7 @@ def update_prop_status(prop_id, status):
 
     payload = {
         "fields": {
-            "status": status
+            "user-rating": status
         }
     }
     r = requests.patch(url, headers=headers, json=payload)
