@@ -1,10 +1,14 @@
+import os
 import uuid
+from uuid import UUID
 import errno
+import random
 import datetime
 import timeit
 import json
 from functools import partial
 
+import requests
 import psycopg2
 import psycopg2.extras
 
@@ -18,6 +22,9 @@ import rmv_constants
 DEBUG = False
 USER = 'test_user'
 NEW_RUN = True
+
+DB_NAME = os.environ['db_name']
+DB_USER = os.environ['db_user']
 
 # ------------------------- // -------------------------
 
@@ -107,7 +114,7 @@ def remove_duplicates(user_uuid: uuid.UUID, curr_properties_list: list):
     return unique_properties
 
 
-def upsert_user_db(config):
+def upsert_user_db(user_config):
     psycopg2.extras.register_uuid()
     user_uuid = util.gen_uuid()
 
@@ -130,16 +137,16 @@ def upsert_user_db(config):
         with conn.cursor() as curs:
             curs.execute(insert_user_command,
                          (user_uuid,
-                          config['email'],
-                          config['maxPrice'],
-                          config['minBedrooms'],
-                          ','.join(config['keywords']),
-                          json.dumps(config['destinations']),
-                          config['date_low'],
-                          config['date_high']))
+                          user_config['email'],
+                          user_config['maxPrice'],
+                          user_config['minBedrooms'],
+                          ','.join(user_config['keywords']),
+                          json.dumps(user_config['destinations']),
+                          user_config['date_low'],
+                          user_config['date_high']))
             user_uuid = curs.fetchone()[0]
 
-    print("Stored/updated user details with email {} in DB. UUID is {}".format(config['email'], user_uuid))
+    print("Stored/updated user details with email {} in DB. UUID is {}".format(user_config['email'], user_uuid))
 
     return user_uuid
 
@@ -157,6 +164,69 @@ def standardise_filtered_listing(user_uuid: uuid.UUID, filtered_listing: dict):
         "avg_travel_time_driving": filtered_listing["avg_travel_time_driving"],
         "augment": json.dumps(filtered_listing['augment'])
     }
+
+
+def write_webflow_cms(final_properties_list, user_config):
+    webflow_db_mapping_query = """
+    INSERT INTO properties_cms_mapping 
+    (prop_uuid, webflow_cms_id)
+    VALUES (%s, %s)
+    """
+
+    image_indices = random.sample(
+        [x for x in range(0, len(final_properties_list[rmv_constants.RmvPropDetails.image_links.name]))], 4)
+
+    headers = {
+        "Authorization": "Bearer {}".format(os.environ['WEBFLOW_API_KEY']),
+        "accept-version": "1.0.0",
+        "Content-Type": "application/json"
+    }
+
+    payload = {
+        "fields": {
+            "_archived": False,
+            "_draft": False,
+            "name": final_properties_list[rmv_constants.RmvPropDetails.rmv_unique_link.name],
+            "slug": str(final_properties_list[rmv_constants.RmvPropDetails.prop_uuid.name]),
+            "full-address": final_properties_list[rmv_constants.RmvPropDetails.street_address.name],
+            "ad-link": final_properties_list[rmv_constants.RmvPropDetails.url.name],
+            "rent-pcm": round(float(final_properties_list[rmv_constants.RmvPropDetails.rent_pcm.name]), 2),
+            "bedrooms": int(final_properties_list[rmv_constants.RmvPropDetails.beds.name]),
+            "image-1": final_properties_list[rmv_constants.RmvPropDetails.image_links.name][image_indices[0]],
+            "image-2": final_properties_list[rmv_constants.RmvPropDetails.image_links.name][image_indices[1]],
+            "image-3": final_properties_list[rmv_constants.RmvPropDetails.image_links.name][image_indices[2]],
+            "image-4": final_properties_list[rmv_constants.RmvPropDetails.image_links.name][image_indices[3]]
+        }
+    }
+
+    for i, each in enumerate(user_config['destinations']):
+        dest = list(each.keys())[0]
+        modes = [list(x.keys())[0] for x in each[dest]['modes']]
+        commute_strings = []
+        for mode in modes:
+            commute_strings.append("{}min {}".
+                                   format(int(final_properties_list['augment']['travel_time'][i][dest][mode]), mode))
+
+        final_commute_string = ', '.join(commute_strings).replace('transit', 'public transport')
+
+        payload["fields"]["commute-{}".format(i+1)] = "{}: {}".format(dest, final_commute_string).capitalize()
+
+    url = "https://api.webflow.com/collections/5e69508ee285babafa6be712/items"
+
+    r = requests.post(url, headers=headers, json=payload)
+
+    if r.status_code == 200:
+        print("Successfully added property ID {} in CMS".
+              format(final_properties_list[rmv_constants.RmvPropDetails.rmv_unique_link.name]))
+        content = json.loads(r.content)
+
+        with psycopg2.connect(dbname=DB_NAME, user=DB_USER) as conn:
+            with conn.cursor() as curs:
+                curs.execute(webflow_db_mapping_query,
+                             (final_properties_list[rmv_constants.RmvPropDetails.prop_uuid.name], content['_id']))
+
+    else:
+        print("An error occurred writing to CMS: {}".format(r.status_code, r.content))
 
 
 def main(config):
@@ -225,16 +295,21 @@ def main(config):
                 psycopg2.extras.execute_values(curs, insert_many_zone_address_query,
                                                [(x[rmv_constants.RmvPropDetails.street_address.name],
                                                  x[rmv_constants.RmvPropDetails.zone_best_guess.name],
-                                                 x[rmv_constants.RmvPropDetails.prop_uuid.name]) for x in
-                                                filtered_properties])
+                                                 x[rmv_constants.RmvPropDetails.prop_uuid.name])
+                                                for x in filtered_properties])
 
-        print("Stored {} new filtered properties in DB. Thanks for running!".format(len(standardised_filtered_listing)))
+        print("Stored {} new filtered properties in DB.".format(len(standardised_filtered_listing)))
+
+        [write_webflow_cms(x, config) for x in filtered_properties]
+        print("All done now! Thanks for running!")
 
     else:
         print("FINAL RESULT: No new properties so not writing to DB. Thanks for running!")
 
 
 if __name__ == '__main__':
+    psycopg2.extras.register_uuid()
+    # filtered_properties = {'description': 'Letting information:Date available:NowFurnishing:FurnishedLetting type:Long termReduced on Rightmove: 13 March 2020 (28 minutes ago)Key featuresDouble BedroomsBalcony24 Hour ConciergeCommunal Roof TerraceResidents RoomCommunal GardensCommunal 24hr GymFull description        This is a stunning apartment within the South Gardens development, the first of the wider Elephant Park scheme. The apartment is set in the Baldwin Point tower.This apartment comprises of two double bedrooms, a bathroom an open plan reception with a fitted kitchen with Bosch appliances including a washer dryer and balcony.  The apartment is finished to a high internal specification including oak engineered wood flooring and underfloor heating throughout. Other benefits of the building include a 24 hour concierge, communal gardens and a communal roof terrace. South Gardens is perfectly located for transport links to the City, the West End and beyond with a range of local bus routes, the tube and National Rail services. The development features a residents gym, Communal Gardens, 24 hour concierge, communal residents room and communal roof terrace.More information from this agentTo view this media, please visit the on-line version of this page at www.rightmove.co.uk/property-to-rent/property-67134849.html?premiumA=trueParticularsEnergy Performance Certificate (EPC) graphsView EPC Rating Graph for this propertySee full size version online', 'postcode': 'SE17 1AF', 'geo_lat': '51.491705786609934', 'geo_long': '-0.08592939071585458', 'rmv_unique_link': '67134849', 'rent_pcm': '2296.6666666666665', 'beds': '2', 'estate_agent': 'Gordon & Co', 'estate_agent_address': 'Strata Pavillion, 4 Walworth Road, London, SE1 6EB', 'date_available': '2020-03-13 12:57:10', 'image_links': ['https://media.rightmove.co.uk/dir/70k/69202/67134849/69202_ELE170658_L_IMG_01_0000_max_656x437.jpg', 'https://media.rightmove.co.uk/dir/70k/69202/67134849/69202_ELE170658_L_IMG_02_0000_max_656x437.jpg', 'https://media.rightmove.co.uk/dir/70k/69202/67134849/69202_ELE170658_L_IMG_03_0000_max_656x437.jpg', 'https://media.rightmove.co.uk/dir/70k/69202/67134849/69202_ELE170658_L_IMG_04_0000_max_656x437.jpg', 'https://media.rightmove.co.uk/dir/70k/69202/67134849/69202_ELE170658_L_IMG_05_0000_max_656x437.jpg', 'https://media.rightmove.co.uk/dir/70k/69202/67134849/69202_ELE170658_L_IMG_06_0000_max_656x437.jpg', 'https://media.rightmove.co.uk/dir/70k/69202/67134849/69202_ELE170658_L_IMG_07_0000_max_656x437.jpg', 'https://media.rightmove.co.uk/dir/70k/69202/67134849/69202_ELE170658_L_IMG_08_0000_max_656x437.jpg'], 'floorplan_links': ['https://media.rightmove.co.uk/dir/70k/69202/67134849/69202_ELE170658_L_FLP_01_0000_max_600x600.jpg', 'https://media.rightmove.co.uk/dir/70k/69202/67134849/69202_ELE170658_L_FLP_01_0000_max_900x900.jpg', 'https://media.rightmove.co.uk/dir/70k/69202/67134849/69202_ELE170658_L_FLP_01_0000_max_1350x1350.jpg'], 'prop_uuid': UUID('428bb0b2-852c-49df-9114-df660fee4622'), 'url': 'https://www.rightmove.co.uk/property-to-rent/property-67134849.html', 'zone_best_guess': 1, 'street_address': '1 Townsend St, London SE17 1HY, UK', 'augment': {'travel_time': [{'EC1R 0EB': {'transit': 38.2, 'walking': 57.666666666666664, 'bicycling': 19.216666666666665, 'driving': 20.183333333333334}}, {'soho': {'transit': 30.0, 'walking': 66.48333333333333, 'bicycling': 21.933333333333334, 'driving': 24.8}}], 'nearby_station_zones': [{'Borough': '1'}]}, 'avg_travel_time_transit': 34.1, 'avg_travel_time_walking': 62.075, 'avg_travel_time_bicycling': 20.575, 'avg_travel_time_driving': 22.491666666666667}
     DEBUG = True
     try:
         print("Trying to open user {} config file from this location {}".format(USER, USER_CONFIG_PATH))
@@ -245,4 +320,6 @@ if __name__ == '__main__':
               "Please make sure the file exists at the right location before running the code again"
               .format(USER, USER_CONFIG_PATH))
         exit(errno.ENOENT)
+
+    # write_webflow_cms(filtered_properties, config)
     main(config)
