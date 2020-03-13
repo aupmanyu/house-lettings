@@ -23,8 +23,6 @@ USER = 'test_user'
 NEW_RUN = True
 
 WEBFLOW_COLLECTION_ID = "5e62aadc51beef34cfbc64d8"
-DB_NAME = os.environ['db_name']
-DB_USER = os.environ['db_user']
 
 # ------------------------- // -------------------------
 
@@ -66,7 +64,7 @@ def get_current_filtered_props_id(user_uuid: uuid.UUID):
         WHERE user_uuid = %s
         """
 
-    with psycopg2.connect(dbname="Aashish", user="Aashish") as conn:
+    with psycopg2.connect(rmv_constants.DB_URL, sslmode='require') as conn:
         with conn.cursor() as curs:
             curs.execute(get_prev_results_query, (user_uuid,))
             prev_filtered_properties = [x[0] for x in curs.fetchall()]
@@ -133,7 +131,7 @@ def upsert_user_db(user_config):
        RETURNING (user_uuid)
        """
 
-    with psycopg2.connect(dbname="Aashish", user="Aashish") as conn:
+    with psycopg2.connect(rmv_constants.DB_URL, sslmode='require') as conn:
         with conn.cursor() as curs:
             curs.execute(insert_user_command,
                          (user_uuid,
@@ -220,7 +218,7 @@ def write_webflow_cms(final_properties_list, user_config):
               format(final_properties_list[rmv_constants.RmvPropDetails.rmv_unique_link.name]))
         content = json.loads(r.content)
 
-        with psycopg2.connect(dbname=DB_NAME, user=DB_USER) as conn:
+        with psycopg2.connect(rmv_constants.DB_URL, sslmode='require') as conn:
             with conn.cursor() as curs:
                 curs.execute(webflow_db_mapping_query,
                              (final_properties_list[rmv_constants.RmvPropDetails.prop_uuid.name], content['_id']))
@@ -243,7 +241,7 @@ def update_prop_status(prop_id, status):
     RETURNING website_unique_id
     """
 
-    with psycopg2.connect(dbname=DB_NAME, user=DB_USER) as conn:
+    with psycopg2.connect(rmv_constants.DB_URL, sslmode='require') as conn:
         with conn.cursor() as curs:
             curs.execute(get_cms_item_id_query, (prop_id,))
             cms_item_id = curs.fetchone()
@@ -328,7 +326,7 @@ def main(config):
 
         standardised_filtered_listing = [standardise_filtered_listing(user_uuid, x) for x in filtered_properties]
 
-        with psycopg2.connect(dbname="Aashish", user="Aashish") as conn:
+        with psycopg2.connect(rmv_constants.DB_URL, sslmode='require') as conn:
             with conn.cursor() as curs:
                 template = "%(user_uuid)s,%(prop_uuid)s,%(website_unique_id)s,%(url)s," \
                            "%(date_sent_to_user)s,%(avg_travel_time_transit)s," \

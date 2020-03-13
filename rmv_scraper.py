@@ -331,7 +331,7 @@ class RmvScraper:
                      property_profile[rmv_constants.RmvPropDetails.rmv_unique_link.name]))
 
         psycopg2.extras.register_uuid()
-        with psycopg2.connect(dbname="Aashish", user="Aashish") as conn:
+        with psycopg2.connect(rmv_constants.DB_URL, sslmode='require') as conn:
             with conn.cursor() as curs:
                 try:
                     curs.execute(insert_string,
