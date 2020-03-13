@@ -1,6 +1,5 @@
 import os
 import uuid
-from uuid import UUID
 import errno
 import random
 import datetime
@@ -23,6 +22,7 @@ DEBUG = False
 USER = 'test_user'
 NEW_RUN = True
 
+WEBFLOW_COLLECTION_ID = "5e62aadc51beef34cfbc64d8"
 DB_NAME = os.environ['db_name']
 DB_USER = os.environ['db_user']
 
@@ -189,10 +189,10 @@ def write_webflow_cms(final_properties_list, user_config):
             "name": final_properties_list[rmv_constants.RmvPropDetails.rmv_unique_link.name],
             "slug": str(final_properties_list[rmv_constants.RmvPropDetails.prop_uuid.name]),
             "full-address": final_properties_list[rmv_constants.RmvPropDetails.street_address.name],
-            "ad-link": final_properties_list[rmv_constants.RmvPropDetails.url.name],
+            "original-ad-link": final_properties_list[rmv_constants.RmvPropDetails.url.name],
             "rent-pcm": round(float(final_properties_list[rmv_constants.RmvPropDetails.rent_pcm.name]), 2),
             "bedrooms": int(final_properties_list[rmv_constants.RmvPropDetails.beds.name]),
-            "image-1": final_properties_list[rmv_constants.RmvPropDetails.image_links.name][image_indices[0]],
+            "main-image": final_properties_list[rmv_constants.RmvPropDetails.image_links.name][image_indices[0]],
             "image-2": final_properties_list[rmv_constants.RmvPropDetails.image_links.name][image_indices[1]],
             "image-3": final_properties_list[rmv_constants.RmvPropDetails.image_links.name][image_indices[2]],
             "image-4": final_properties_list[rmv_constants.RmvPropDetails.image_links.name][image_indices[3]]
@@ -211,7 +211,7 @@ def write_webflow_cms(final_properties_list, user_config):
 
         payload["fields"]["commute-{}".format(i+1)] = "{}: {}".format(dest, final_commute_string).capitalize()
 
-    url = "https://api.webflow.com/collections/5e69508ee285babafa6be712/items"
+    url = "https://api.webflow.com/collections/{}/items?live=true".format(WEBFLOW_COLLECTION_ID)
 
     r = requests.post(url, headers=headers, json=payload)
 
@@ -226,7 +226,50 @@ def write_webflow_cms(final_properties_list, user_config):
                              (final_properties_list[rmv_constants.RmvPropDetails.prop_uuid.name], content['_id']))
 
     else:
-        print("An error occurred writing to CMS: {}".format(r.status_code, r.content))
+        print("An error occurred for property ID {} writing to CMS: {}".format(
+            final_properties_list[rmv_constants.RmvPropDetails.rmv_unique_link.name], r.content))
+
+
+def update_prop_status(prop_id, status):
+    get_cms_item_id_query = """
+    SELECT webflow_cms_id FROM properties_cms_mapping 
+    WHERE prop_uuid = %s
+    """
+
+    update_property_status_query = """
+    UPDATE filtered_properties 
+    SET user_favourites = %s
+    WHERE prop_uuid = %s
+    RETURNING website_unique_id
+    """
+
+    with psycopg2.connect(dbname=DB_NAME, user=DB_USER) as conn:
+        with conn.cursor() as curs:
+            curs.execute(get_cms_item_id_query, (prop_id,))
+            cms_item_id = curs.fetchone()
+            curs.execute(update_property_status_query, (status, prop_id))
+            website_id = curs.fetchone()
+            print("Updated status of property {} in DB to {}".format(website_id, status))
+
+    url = "https://api.webflow.com/collections/{}/items/{}?live=true".format(WEBFLOW_COLLECTION_ID, cms_item_id[0])
+
+    headers = {
+        "Authorization": "Bearer {}".format(os.environ['WEBFLOW_API_KEY']),
+        "accept-version": "1.0.0",
+        "Content-Type": "application/json"
+    }
+
+    payload = {
+        "fields": {
+            "status": status
+        }
+    }
+    r = requests.patch(url, headers=headers, json=payload)
+
+    if r.status_code == 200:
+        print("Updated status of property {} in CMS to {}".format(website_id, status))
+    else:
+        print("An error occurred updating status of property {} in CMS: {}".format(website_id, json.loads(r.content)))
 
 
 def main(config):
@@ -244,10 +287,13 @@ def main(config):
             exit(errno.ENOENT)
 
     # Filtering properties
-    filters_to_use = [partial(filters.enough_images_filter, threshold=4),
-                      partial(filters.date_available_filter, lower_threshold='2020-03-01 00:00:00',
-                              upper_threshold='2020-04-01 00:00:00'),
-                      partial(filters.min_rent_filter, threshold=1500)]
+    lower_threshold = datetime.datetime.strptime(config['date_low'], "%Y-%m-%d %H:%M:%S") - datetime.timedelta(days=5)
+    upper_threshold = datetime.datetime.strptime(config['date_high'], "%Y-%m-%d %H:%M:%S") + datetime.timedelta(days=5)
+    filters_to_use = [partial(filters.enough_images_filter, threshold=6),
+                      partial(filters.date_available_filter,
+                              lower_threshold=datetime.datetime.strftime(lower_threshold, "%Y-%m-%d %H:%M:%S"),
+                              upper_threshold=datetime.datetime.strftime(upper_threshold, "%Y-%m-%d %H:%M:%S")),
+                      partial(filters.min_rent_filter, threshold=0.7*config['maxPrice'])]
 
     print("Filtering properties now ...")
     filtered_properties = list(filter(lambda x: all(f(x) for f in filters_to_use), rmv_properties))
@@ -276,6 +322,7 @@ def main(config):
 
     if filtered_properties:
         # no list comprehension needed for commute times because GMAPS API can take in 25 x 25 (origins x destinations)
+        print("Getting travel times and zones for properties now ...")
         travel_time.get_commute_times(filtered_properties, [k for x in config['destinations'] for k in x.keys()])
         [travel_time.get_property_zone(x) for x in filtered_properties]
 

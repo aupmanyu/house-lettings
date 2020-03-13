@@ -79,3 +79,9 @@ class RmvTransportModes(Enum):
     bicycling = 'cycling'
     driving = 'driving'
 
+
+class PropertyStatus(Enum):
+    liked = 'liked'
+    disliked = 'disliked'
+    superliked = 'superliked'
+

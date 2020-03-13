@@ -1,6 +1,6 @@
 import datetime
 from dateutil import parser
-from flask import Flask, escape, request
+from flask import Flask, request
 from flask_cors import cross_origin
 from flask_executor import Executor
 
@@ -13,7 +13,6 @@ app.config['EXECUTOR_PROPAGATE_EXCEPTIONS'] = True
 executor = Executor(app)
 
 
-
 @app.route('/', methods=['GET'])
 def hello():
     return "Here is the flask app!"
@@ -24,25 +23,30 @@ def search():
     user_config = generate_user_config(request.json)
     print(user_config)
     executor.submit(main.main, user_config)
-    return "Thanks", 202
+    return "Pipeline kicked off", 202
 
 
 @app.route('/update', methods=['POST'])
 @cross_origin()
 def update_prop_status():
     data = request.json
-    print(data)
+    main.update_prop_status(data['slug'], data['status'])
     return "Success", 200
 
 
 def generate_user_config(criteria):
     destinations = generate_destinations(criteria)
+    try:
+        date_low = datetime.datetime.strftime(parser.parse(criteria['data__Move In Date'].split('-')[0]),
+                                               "%Y-%m-%d %H:%M:%S")
+        date_high = datetime.datetime.strftime(parser.parse(criteria['data__Move In Date'].split('-')[1]),
+                                               "%Y-%m-%d %H:%M:%S")
+    except IndexError:
+        date_high = date_low
     return {
         "email": criteria['data__Email Address'],
-        "date_low": datetime.datetime.strftime(parser.parse(criteria['data__Move In Date'].split('-')[0]),
-                                               "%Y-%m-%d %H:%M:%S"),
-        "date_high": datetime.datetime.strftime(parser.parse(criteria['data__Move In Date'].split('-')[1]),
-                                                "%Y-%m-%d %H:%M:%S"),
+        "date_low": date_low,
+        "date_high": date_high,
         "radius": 0,
         "maxPrice": float(criteria['data__Rent']),
         "minBedrooms": int(criteria['data__Number Of Bedrooms']),
