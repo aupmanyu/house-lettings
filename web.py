@@ -27,7 +27,7 @@ def search():
 
 
 @app.route('/update', methods=['POST'])
-@cross_origin()
+@cross_origin(allow_headers=['Content-Type'])
 def update_prop_status():
     data = request.json
     print("Received data to update status of property {} to {}".format(data['slug'], data['status']))
