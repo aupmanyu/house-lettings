@@ -56,7 +56,7 @@ class RmvScraper:
             self.keywords = config['keywords']
             self.radius = config['radius']
         except KeyError as e:
-            raise ("Config file is malformed: {} does not exist".format(e))
+            raise e
 
     def _get_search_areas(self):
         print("Geocoding user's destinations ...")
@@ -96,7 +96,8 @@ class RmvScraper:
                 self.outcode_list = [x for x in self.outcode_list if x is not None]
         else:
             raise requests.exceptions.HTTPError(
-                "An error occurred getting postcodes with error code {}".format(r.status_code))
+                "An error occurred getting postcodes with error code {}. Error Message: {}"
+                .format(r.status_code, json.loads(r.content)))
 
     @staticmethod
     def _gen_pois(pois):
@@ -195,7 +196,8 @@ class RmvScraper:
             soup = BeautifulSoup(data.text, "html.parser")
             property_listing = {}
             description_text = soup.find("div", xpath_description).text
-            property_listing[rmv_constants.RmvPropDetails.description.name] = description_text.strip().replace('\n', '')
+            property_listing[rmv_constants.RmvPropDetails.description.name] = description_text.strip().replace('\n',
+                                                                                                               ' ')
 
             scripts_soup = soup.find_all('script')
             scripts_with_details = list(
@@ -206,7 +208,7 @@ class RmvScraper:
                         for y in range(0, len(scripts_soup))]))
 
             # the field we want is repeated many times in this script so we just pick one
-            # (use 6th element because it's the first occurence of clean JS code that doesn't cause the parser to break)
+            # (use 6th element because it's first occurrence of clean JS code that doesn't cause the parser to break)
             scripts_with_availability = \
                 list(filter(lambda x: True if x.find(rmv_constants.PROPERTY_AVAILABILITY_FILTER) >= 0 else False,
                             [str(scripts_soup[y].next).strip().replace('\r', '')
@@ -218,11 +220,11 @@ class RmvScraper:
             # that causes parser to break
             try:
                 scripts_with_images = \
-                list(filter(lambda x: True if x.find(rmv_constants.PROPERTY_IMAGES_FILTER) >= 0 else False,
-                            [str(scripts_soup[y].next).strip().replace('\r', '')
-                            .replace('\n', '')
-                            .replace('\t', '')
-                             for y in range(0, len(scripts_soup))]))[0].split('(jQuery);')
+                    list(filter(lambda x: True if x.find(rmv_constants.PROPERTY_IMAGES_FILTER) >= 0 else False,
+                                [str(scripts_soup[y].next).strip().replace('\r', '')
+                                .replace('\n', '')
+                                .replace('\t', '')
+                                 for y in range(0, len(scripts_soup))]))[0].split('(jQuery);')
                 scripts_with_images = list(
                     filter(lambda x: True if x.find(rmv_constants.PROPERTY_IMAGES_FILTER) >= 0 else False,
                            [y for y in scripts_with_images]))
@@ -232,17 +234,18 @@ class RmvScraper:
 
             try:
                 scripts_with_floorplans = \
-                list(filter(lambda x: True if x.find(rmv_constants.PROPERTY_FLOORPLAN_FILTER) >= 0 else False,
-                            [str(scripts_soup[y].next).strip().replace('\r', '')
-                            .replace('\n', '')
-                            .replace('\t', '')
-                             for y in range(0, len(scripts_soup))]))[0].split('(jQuery);')
+                    list(filter(lambda x: True if x.find(rmv_constants.PROPERTY_FLOORPLAN_FILTER) >= 0 else False,
+                                [str(scripts_soup[y].next).strip().replace('\r', '')
+                                .replace('\n', '')
+                                .replace('\t', '')
+                                 for y in range(0, len(scripts_soup))]))[0].split('(jQuery);')
                 scripts_with_floorplans = list(
                     filter(lambda x: True if x.find(rmv_constants.PROPERTY_FLOORPLAN_FILTER) >= 0 else False,
                            [y for y in scripts_with_floorplans]))
             except IndexError:
                 scripts_with_floorplans = []
 
+            # scripts_with_availability made list with [] because it is string above because of .split()[6] indexing
             scripts_to_walk = scripts_with_details + [scripts_with_availability] + \
                               scripts_with_images + scripts_with_floorplans
 
@@ -292,11 +295,12 @@ class RmvScraper:
             pass
 
         except AttributeError as e:
-            print("An error occurred parsing data from url {}: {}".format(url, e))
+            print("An error occurred parsing data from url {}: {}. CULPRIT: {}".format(url, e, property_listing))
             pass
 
         except Exception as e:
-            print("Some other error occurred parsing data from url {}: {}".format(url, e))
+            print(
+                "Some other error occurred parsing data from url {}: {}. CULPRIT: {}".format(url, e, property_listing))
             pass
 
     def _standardise_listing(self, property_profile: dict):
@@ -352,5 +356,5 @@ class RmvScraper:
                                   datetime.datetime.strftime(datetime.datetime.now(), "%Y-%m-%d %H:%M:%S")
                                   ))
                 except Exception as e:
-                    print("Could not store property with RMV ID {}: ".
-                          format(property_profile[rmv_constants.RmvPropDetails.rmv_unique_link.name], e))
+                    print("Error occurred storing property in DB: {}. CULPRIT OBJECT: {} ".
+                          format(e, property_profile))
