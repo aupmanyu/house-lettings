@@ -1,6 +1,9 @@
 # Application specific
 *.html
 *.csv
+.env
+db/postico/
+text_analysis/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

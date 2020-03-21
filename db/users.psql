@@ -1,0 +1,12 @@
+CREATE TABLE IF NOT EXISTS users (
+    user_uuid uuid PRIMARY KEY,
+    email varchar(50) UNIQUE,
+    date_low timestamp,
+    date_high timestamp,
+    max_rent float,
+    min_beds int,
+    keywords text,
+    destinations jsonb
+);
+
+CREATE INDEX IF NOT EXISTS users_email ON users(email);

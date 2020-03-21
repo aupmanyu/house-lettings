@@ -13,6 +13,11 @@ calmjs-parse = "*"
 pyld = "*"
 googlemaps = "*"
 python-dateutil = "*"
+flask = "*"
+flask-executor = "*"
+psycopg2 = "*"
+flask-cors = "*"
+gunicorn = "*"
 
 [requires]
 python_version = "3.7"
