@@ -1,10 +1,7 @@
-import os
 from uuid import UUID
 from enum import Enum, auto
 from dataclasses import dataclass
 from collections import namedtuple
-
-DB_URL = os.environ['DATABASE_URL']
 
 BASE_URL = "https://www.rightmove.co.uk/property-to-rent"
 FIND_URI = '/find.html'
@@ -82,9 +79,4 @@ class RmvTransportModes(Enum):
     bicycling = 'cycling'
     driving = 'driving'
 
-
-class PropertyStatus(Enum):
-    liked = 'liked'
-    disliked = 'disliked'
-    superliked = 'superliked'
 

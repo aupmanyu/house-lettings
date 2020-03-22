@@ -16,6 +16,7 @@ from calmjs.parse.asttypes import Assign, UnaryExpr
 from calmjs.parse.walkers import Walker
 from bs4 import BeautifulSoup
 
+import general_constants
 import rmv_constants
 import util
 
@@ -278,7 +279,7 @@ class RmvScraper:
                                     property_listing[field.name] = str(node.right.value).replace('"', '')
                             break
 
-            match = re.search('(\d+/\d+/\d+)', description_text)
+            match = re.search(r'(\d+/\d+/\d+)', description_text)
             if match:
                 property_listing[rmv_constants.RmvPropDetails.date_available.name] = \
                     datetime.datetime.strftime(parser.parse(match.group(1)), "%Y-%m-%d %H:%M:%S")
@@ -335,7 +336,7 @@ class RmvScraper:
                      property_profile[rmv_constants.RmvPropDetails.rmv_unique_link.name]))
 
         psycopg2.extras.register_uuid()
-        with psycopg2.connect(rmv_constants.DB_URL, sslmode='allow') as conn:
+        with psycopg2.connect(general_constants.DB_URL, sslmode='allow') as conn:
             with conn.cursor() as curs:
                 try:
                     curs.execute(insert_string,

@@ -12,6 +12,7 @@ import psycopg2
 import psycopg2.extras
 import psycopg2.errors
 
+import general_constants
 from rmv_scraper import RmvScraper
 
 import util
@@ -65,7 +66,7 @@ def get_current_filtered_props_id(user_uuid: uuid.UUID):
         WHERE user_uuid = %s
         """
 
-    with psycopg2.connect(rmv_constants.DB_URL, sslmode='allow') as conn:
+    with psycopg2.connect(general_constants.DB_URL, sslmode='allow') as conn:
         with conn.cursor() as curs:
             curs.execute(get_prev_results_query, (user_uuid,))
             prev_filtered_properties = [x[0] for x in curs.fetchall()]
@@ -132,7 +133,7 @@ def upsert_user_db(user_config):
        RETURNING (user_uuid)
        """
 
-    with psycopg2.connect(rmv_constants.DB_URL, sslmode='allow') as conn:
+    with psycopg2.connect(general_constants.DB_URL, sslmode='allow') as conn:
         with conn.cursor() as curs:
             curs.execute(insert_user_command,
                          (user_uuid,
@@ -219,7 +220,7 @@ def write_webflow_cms(final_properties_list, user_config):
               format(final_properties_list[rmv_constants.RmvPropDetails.rmv_unique_link.name]))
         content = json.loads(r.content)
 
-        with psycopg2.connect(rmv_constants.DB_URL, sslmode='allow') as conn:
+        with psycopg2.connect(general_constants.DB_URL, sslmode='allow') as conn:
             with conn.cursor() as curs:
                 curs.execute(webflow_db_mapping_query,
                              (final_properties_list[rmv_constants.RmvPropDetails.prop_uuid.name], content['_id']))
@@ -242,7 +243,7 @@ def update_prop_status(prop_id, status):
     RETURNING website_unique_id
     """
 
-    with psycopg2.connect(rmv_constants.DB_URL, sslmode='allow') as conn:
+    with psycopg2.connect(general_constants.DB_URL, sslmode='allow') as conn:
         with conn.cursor() as curs:
             curs.execute(get_cms_item_id_query, (prop_id,))
             cms_item_id = curs.fetchone()
@@ -328,7 +329,7 @@ def main(config):
         standardised_filtered_listing = [standardise_filtered_listing(user_uuid, x) for x in filtered_properties]
 
         try:
-            with psycopg2.connect(rmv_constants.DB_URL, sslmode='allow') as conn:
+            with psycopg2.connect(general_constants.DB_URL, sslmode='allow') as conn:
                 with conn.cursor() as curs:
                     template = "%(user_uuid)s,%(prop_uuid)s,%(website_unique_id)s,%(url)s," \
                                "%(date_sent_to_user)s,%(avg_travel_time_transit)s," \
@@ -345,7 +346,8 @@ def main(config):
                                                      x[rmv_constants.RmvPropDetails.prop_uuid.name])
                                                     for x in filtered_properties])
                     print("Stored {} new filtered properties in DB.".format(len(standardised_filtered_listing)))
-                    [write_webflow_cms(x, config) for x in filtered_properties]
+                    if not DEBUG:
+                        [write_webflow_cms(x, config) for x in filtered_properties]
 
         except Exception as e:
             print("Could not store some properties in DB: {}".format(e))
@@ -369,6 +371,4 @@ if __name__ == '__main__':
               "Please make sure the file exists at the right location before running the code again"
               .format(USER, USER_CONFIG_PATH))
         exit(errno.ENOENT)
-
-    # write_webflow_cms(filtered_properties, config)
     main(config)
