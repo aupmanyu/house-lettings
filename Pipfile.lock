@@ -27,11 +27,11 @@
         },
         "calmjs-parse": {
             "hashes": [
-                "sha256:321841cf168bea4404f07399752e1d8cbfb2f9d8fcdc1f0ecefb5e5bd9213169",
-                "sha256:9bb7c833966b55c13869c605767514d4e58431624bc6ee9ea22115ce4d901099"
+                "sha256:19d71667ecae22467b85d5b18394d1de730bab6142edb55551e398cde4e6735b",
+                "sha256:708e8952d5cb49a40dbad02db46a8294e9a09c17cb1d37282c7cfe9e1a81c68b"
             ],
             "index": "pypi",
-            "version": "==1.2.2"
+            "version": "==1.2.4"
         },
         "certifi": {
             "hashes": [
@@ -56,11 +56,11 @@
         },
         "flask": {
             "hashes": [
-                "sha256:13f9f196f330c7c2c5d7a5cf91af894110ca0215ac051b5844701f2bfd934d52",
-                "sha256:45eb5a6fd193d6cf7e0cf5d8a5b31f83d5faae0293695626f539a823e93b13f6"
+                "sha256:4efa1ae2d7c9865af48986de8aeb8504bf32c7f3d6fdc9353d34b21f4b127060",
+                "sha256:8a4fdd8936eba2512e9c85df320a37e694c93945b33ef33c89946a340a238557"
             ],
             "index": "pypi",
-            "version": "==1.1.1"
+            "version": "==1.1.2"
         },
         "flask-cors": {
             "hashes": [
@@ -232,10 +232,10 @@
         },
         "werkzeug": {
             "hashes": [
-                "sha256:169ba8a33788476292d04186ab33b01d6add475033dfc07215e6d219cc077096",
-                "sha256:6dc65cf9091cf750012f56f2cad759fa9e879f511b5ff8685e456b4e3bf90d16"
+                "sha256:2de2a5db0baeae7b2d2664949077c2ac63fbd16d98da0ff71837f7d1dea3fd43",
+                "sha256:6c80b1e5ad3665290ea39320b91e1be1e0d5f60652b964a3070216de83d2e47c"
             ],
-            "version": "==1.0.0"
+            "version": "==1.0.1"
         }
     },
     "develop": {}

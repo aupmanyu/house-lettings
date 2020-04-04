@@ -3,6 +3,7 @@ from enum import Enum, auto
 from dataclasses import dataclass
 from collections import namedtuple
 
+ROOT_URL = "https://www.rightmove.co.uk"
 BASE_URL = "https://www.rightmove.co.uk/property-to-rent"
 FIND_URI = '/find.html'
 SEARCH_URL = 'https://where.rightmove.co.uk/search'

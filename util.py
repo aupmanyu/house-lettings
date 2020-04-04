@@ -95,14 +95,6 @@ def requests_retry_session(retries=6, backoff_factor=0.6, status_forcelist=(500,
     session.mount('https://', adapter)
     return session
 
-    properties_list = []
-    with open(file) as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            properties_list.append(dict(row))
-
-    return properties_list
-
 
 def csv_reader(file):
     '''
@@ -120,7 +112,7 @@ def csv_reader(file):
     return properties_list
 
 
-def csv_writer(data, out_file):
+def csv_writer(data: [dict], out_file, mode='w'):
     max_fields = 0
     max_field_dict = None
     for each in data:
@@ -130,7 +122,7 @@ def csv_writer(data, out_file):
 
     fieldnames = [x for x in max_field_dict.keys()]
 
-    with open(out_file, 'w') as f:
+    with open(out_file, mode) as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames, delimiter=',')
         writer.writeheader()
         for each in data:
