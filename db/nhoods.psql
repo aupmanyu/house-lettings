@@ -1,0 +1,10 @@
+CREATE TABLE IF NOT EXISTS nhoods_uk (
+    nhood_id uuid PRIMARY KEY,
+    nhood_name varchar(100),
+    rmv_id int,
+    polyline text
+);
+
+CREATE INDEX IF NOT EXISTS nhood_name_idx ON nhoods_uk(nhood_name);
+
+ALTER TABLE nhoods_uk ADD COLUMN IF NOT EXISTS in_london boolean;

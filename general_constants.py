@@ -2,6 +2,7 @@ import os
 from enum import Enum
 
 DB_URL = os.environ['DATABASE_URL']
+NEIGHBOURHOODS_URL = "https://en.wikipedia.org/wiki/List_of_areas_of_London"
 
 
 class PropertyStatus(Enum):
