@@ -26,3 +26,18 @@ class CheckboxFeatures(Enum):
     CONCIERGE = 12
 
 
+class NhoodCategorisation(Enum):
+    best = 1
+    beautiful = 2
+    luxurious = 3
+    nightlife = 4
+    eating = 5
+    restaurants = 6
+    shopping = 7
+    walk = 8
+    green = 9
+    village = 10
+    young_professional = 11
+    students = 12
+    family = 13
+    artsy = 14
