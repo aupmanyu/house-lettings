@@ -59,12 +59,12 @@ def standardise_nhoods_sql(nhoods: dict, london_nhoods: list):
 
 def write_db_london_nhoods_cats(file):
     get_london_nhood_id_query = """
-    SELECT DISTINCT ON (nhood_name) nhood_id, nhood_name FROM nhoods_uk
+    SELECT nhood_id, nhood_name FROM nhoods_uk
     WHERE in_london is TRUE
     """
     insert_nhood_cat_query = """
     INSERT INTO nhoods_cat 
-    (nhood_id, best, beautiful, luxurious, nightlife, eating, restaurants, shopping, walk, green, village, 
+    (best, beautiful, luxurious, nightlife, eating, restaurants, shopping, walk, green, village, 
     young_professional, students, family, artsy, nhood_id)
     VALUES %s
     """
@@ -81,18 +81,21 @@ def write_db_london_nhoods_cats(file):
             for x in curs.fetchall():
                 london_nhoods_id[x[1].lower()] = x[0]
 
-    try:
-        for each in london_nhoods_cat:
+    remove_list = []
+    for each in london_nhoods_cat:
+        try:
             each.update({"nhood_id": london_nhoods_id[each['Location'].lower()]})
             each.pop("Location")
             for k, v in each.items():
                 if not v:
                     each[k] = 0
 
-    except KeyError as e:
-        print("A key couldn't be found ...: {}".format(e))
-        print(traceback.print_exc())
-        pass
+        except KeyError as e:
+            print("A key couldn't be found so removing from list ...: {}".format(e))
+            remove_list.append(each)
+        continue
+
+    [london_nhoods_cat.remove(each) for each in remove_list]
 
     with psycopg2.connect(general_constants.DB_URL, sslmode="allow") as conn:
         with conn.cursor() as curs:
