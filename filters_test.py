@@ -26,7 +26,7 @@ def test_keyword_filtering():
                     })
                     for keyword in keywords:
                         results[i][keyword] = \
-                            filters.keyword_filter(keyword, {rmv_constants.RmvPropDetails.description.name: each[0]})
+                            filters.keyword_filter(keyword, each[0])
 
                 return results
             except Exception as e:
