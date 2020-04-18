@@ -10,3 +10,7 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 CREATE INDEX IF NOT EXISTS users_email ON users(email);
+
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS desired_cats text,
+    ADD COLUMN IF NOT EXISTS desired_nhoods text;

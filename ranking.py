@@ -49,15 +49,17 @@ class PropertyScorer:
 
     def _in_user_desired_areas(self, property_coords: tuple, user_desired_areas: [str]):
         in_london = reduce(lambda x, y: x or y, [True for x in user_desired_areas
-                                                 if x in self._london_areas_ids_names.values()])
+                                                 if x in self._london_areas_ids_names.values()], 0)
         london_polylines_lookup = {x.nhood_name: x for x in self._london_polylines}
         Point_XY = geometry.Point(property_coords)
         if in_london:
             target_areas = [self._decode_polyline(london_polylines_lookup[x].polyline)
                             if london_polylines_lookup[x].polyline is not None else None for x in user_desired_areas ]
 
-        return [geometry.Polygon(polygon).contains(Point_XY) if polygon is not None else None
-                for polygon in target_areas]
+            return [geometry.Polygon(polygon).contains(Point_XY) if polygon is not None else None
+                    for polygon in target_areas]
+        else:
+            return []
 
     def _in_user_desired_categories(self, property_coords: tuple,
                                     user_desired_cats: [general_constants.NhoodCategorisation]):
@@ -135,8 +137,8 @@ class PropertyScorer:
     def _extract_property_details(listing: dict, detail=None):
         try:
             if detail == 'coords':
-                return (listing[rmv_constants.RmvPropDetails.geo_lat.name],
-                        listing[rmv_constants.RmvPropDetails.geo_long.name])
+                return (float(listing[rmv_constants.RmvPropDetails.geo_lat.name]),
+                        float(listing[rmv_constants.RmvPropDetails.geo_long.name]))
             elif detail == 'desc':
                 return listing[rmv_constants.RmvPropDetails.description.name]
             else:
@@ -271,11 +273,13 @@ if __name__ == '__main__':
     # property_coords_3 = (51.491746, -0.065278)  # in Bermondsey
     # property_coords_4 = (51.469138, -0.155479)  # in Battersea ("green" neighbourhood)
     # property_coords_5 = (51.512110, -0.070850)  # in Aldgate (not "green" neighbourhood)
-    user_desired_areas = ['Soho', 'Islington', 'Angel', 'Hackney']
-    user_desired_cats = [general_constants.NhoodCategorisation.green, general_constants.NhoodCategorisation.artsy]
-    user_keywords = [general_constants.CheckboxFeatures.GARDEN, general_constants.CheckboxFeatures.CONCIERGE,
-                     general_constants.CheckboxFeatures.PARKING_SPACE,
-                     general_constants.CheckboxFeatures.NO_GROUND_FLOOR]
+    # user_desired_areas = ['Soho', 'Islington', 'Angel', 'Hackney']
+    # user_desired_cats = [general_constants.NhoodCategorisation.green, general_constants.NhoodCategorisation.artsy]
+    # user_keywords = [general_constants.CheckboxFeatures.GARDEN, general_constants.CheckboxFeatures.CONCIERGE,
+    #                  general_constants.CheckboxFeatures.PARKING_SPACE,
+    #                  general_constants.CheckboxFeatures.NO_GROUND_FLOOR]
+
+    user_desired_areas = user_desired_cats = user_keywords = []
 
     result_1 = ranker.score(listing_1, user_desired_areas, user_desired_cats, user_keywords)
     result_2 = ranker.score(listing_2, user_desired_areas, user_desired_cats, user_keywords)

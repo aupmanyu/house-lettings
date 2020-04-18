@@ -35,7 +35,7 @@ def date_available_filter(property_listing, lower_threshold, upper_threshold):
 
 def enough_images_filter(property_listing, threshold):
     try:
-        return len(property_listing[rmv_constants.RmvPropDetails.image_links.name]) < threshold
+        return len(property_listing[rmv_constants.RmvPropDetails.image_links.name]) > threshold
 
     except TypeError as e:
         print("An error occurred filtering property: {}. CULPRIT: {} ".format(e, property_listing))
@@ -44,7 +44,7 @@ def enough_images_filter(property_listing, threshold):
 
 def floorplan_filter(property_listing):
     try:
-        return len(property_listing[rmv_constants.RmvPropDetails.floorplan_link.name]) < 1
+        return len(property_listing[rmv_constants.RmvPropDetails.floorplan_link.name]) > 0
 
     except TypeError as e:
         print("An error occurred filtering property: {}. CULPRIT: {} ".format(e, property_listing))
@@ -53,7 +53,7 @@ def floorplan_filter(property_listing):
 
 def min_rent_filter(property_listing, threshold):
     try:
-        return float(property_listing[rmv_constants.RmvPropDetails.rent_pcm.name]) < threshold
+        return float(property_listing[rmv_constants.RmvPropDetails.rent_pcm.name]) > threshold
 
     # TODO: ValueError caught and returned as False for properties where rent is 'null' for unknown reasons.
     #  For now, we ignore these properties during filtering. Once we debug the 'null' rent issue,

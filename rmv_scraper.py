@@ -35,7 +35,7 @@ class RmvScraper:
 
     def search_parallel(self):
         self._get_search_areas()
-        with mp.get_context("spawn").Pool(processes=15) as pool:
+        with mp.get_context("spawn").Pool(processes=25) as pool:
             properties_id_list = pool.map(self._search_summary, self.outcode_list)
             properties_id_list_flat = [item for sublist in properties_id_list for item in sublist]
             # results = pool.starmap(self.search, search_postcodes, **kwargs)
@@ -54,7 +54,6 @@ class RmvScraper:
             self.destinations = config['destinations']
             self.max_price = int(config['maxPrice'])
             self.min_bedrooms = config['minBedrooms']
-            self.keywords = config['keywords']
             self.radius = config['radius']
         except KeyError as e:
             raise e
@@ -140,8 +139,7 @@ class RmvScraper:
             "locationIdentifier": postcode_identifier.replace(' ', ''),
             "radius": self.radius,
             "minBedrooms": self.min_bedrooms,
-            "maxPrice": self.max_price,
-            "keywords": ','.join(self.keywords)
+            "maxPrice": self.max_price
         }
         data = requests.get(self.find_url, headers=headers, params=payload)
 
@@ -165,8 +163,7 @@ class RmvScraper:
             "radius": self.radius,
             "index": index,
             "minBedrooms": self.min_bedrooms,
-            "maxPrice": self.max_price,
-            "keywords": ','.join(self.keywords)
+            "maxPrice": self.max_price
         }
 
         try:

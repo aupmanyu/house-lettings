@@ -14,3 +14,5 @@ CREATE TABLE IF NOT EXISTS filtered_properties (
     augment jsonb,
     UNIQUE(user_uuid, website_unique_id)
     );
+
+ALTER TABLE filtered_properties ADD COLUMN IF NOT EXISTS score float DEFAULT NULL;
