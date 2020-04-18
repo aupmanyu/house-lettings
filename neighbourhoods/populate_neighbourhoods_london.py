@@ -1,9 +1,12 @@
+import os
 import csv
 import uuid
 import requests
 import polyline
 import traceback
 import timeit
+from enum import Enum
+from time import sleep
 from shapely import geometry
 from bs4 import BeautifulSoup
 import psycopg2
@@ -12,6 +15,13 @@ import psycopg2.extras
 import general_constants
 
 psycopg2.extras.register_uuid()
+
+
+class Steps:
+    UK_NHOODS_DB_POPULATE = 1
+    CLEAN_DATA = 2
+    WRITE_WEBFLOW = 3
+    LONDON_CATS_NHOODS_DB_POPULATE = 4
 
 
 def get_london_nhoods():
@@ -171,54 +181,119 @@ def clean_data():
             curs.execute(update_area_status_query, (tuple(not_in_london),))
 
 
+def write_webflow_london_nhoods():
+    url = "https://api.webflow.com/collections/{}/items".format(os.environ.get('WEBFLOW_COLLECTION_ID'))
+
+    headers = {
+        "Authorization": "Bearer {}".format(os.environ['WEBFLOW_API_KEY']),
+        "Accept-Version": "1.0.0",
+        "Content-Type": "application/json"
+    }
+
+    london_nhood_query = """
+    SELECT nhood_id, nhood_name 
+    FROM nhoods_uk
+    WHERE in_london is TRUE
+    """
+
+    print("Getting all neighbourhoods in London from DB ...")
+    with psycopg2.connect(general_constants.DB_URL, sslmode='allow') as conn:
+        with conn.cursor() as curs:
+            curs.execute(london_nhood_query, )
+            data = curs.fetchall()
+
+    for i, each in enumerate(data):
+        payload = {
+                "fields": {
+                    "_archived": False,
+                    "_draft": False,
+                    "name": str(each[0]),
+                    "slug": each[1].replace(' ', '_').replace("'", '').replace(',', ''),  # required field by Webflow but doesn't accept spaces
+                    "nhood-name": each[1]
+                }
+            }
+
+        try:
+            print("Writing to Webflow CMS now ...")
+            r = requests.post(url, headers=headers, json=payload)
+
+            if r.status_code == 200:
+                print("Finished writing neighbourhoods {} of {} to Webflow".format(i + 1, len(data)))
+
+            else:
+                print("An error occurred writing to Webflow: {}".format(r.content))
+                print("Culprit object: {}".format(each))
+
+            try:
+                if int(r.headers['X-RateLimit-Remaining']) <= 1:  # 1 instead of 0 because of bug in Webflow API
+                    print("Going to sleep for 70s to reset Webflow rate limit ...")
+                    sleep(70)  # Sleep for 60s before making new requests to Webflow
+            except KeyError:
+                pass
+
+        except Exception:
+            print(traceback.format_exc())
+            print("Culprit object: {}".format(each))
+        continue
+
 
 if __name__ == '__main__':
     timer_start = timeit.default_timer()
+    steps = {
+        Steps.UK_NHOODS_DB_POPULATE: False,
+        Steps.CLEAN_DATA: False,
+        Steps.WRITE_WEBFLOW: False,
+        Steps.LONDON_CATS_NHOODS_DB_POPULATE: False
+    }
 
-    # ------------ Populate nhoods_uk DB: should give 52611 records ---------------
-    london_nhoods_wiki = get_london_nhoods()
-    nhoods_rmv = []
-    with open('rmv_region_polyline_mapping.csv', 'r') as f:
-        print("Reading in regions in RMV with polylines ...")
-        reader = csv.DictReader(f)
-        for row in reader:
-            nhoods_rmv.append(row)
+    if steps[Steps.UK_NHOODS_DB_POPULATE]:
+        london_nhoods_wiki = get_london_nhoods()
+        nhoods_rmv = []
+        with open('rmv_region_polyline_mapping.csv', 'r') as f:
+            print("Reading in regions in RMV with polylines ...")
+            reader = csv.DictReader(f)
+            for row in reader:
+                nhoods_rmv.append(row)
 
-    no_match_nhoods = match_london_nhoods(london_nhoods_wiki, [x['region'] for x in nhoods_rmv])
+        no_match_nhoods = match_london_nhoods(london_nhoods_wiki, [x['region'] for x in nhoods_rmv])
 
-    print("Standardising all nhoods now ...")
-    std_timer_start = timeit.default_timer()
-    standardised_nhoods = [standardise_nhoods_sql(x, [list(x.values())[0] for x in london_nhoods_wiki]) for x in nhoods_rmv]
-    [standardised_nhoods.append(
-        standardise_nhoods_sql(x, [list(x.values())[0] for x in london_nhoods_wiki])) for x in no_match_nhoods]
-    std_timer_stop = timeit.default_timer()
+        print("Standardising all nhoods now ...")
+        std_timer_start = timeit.default_timer()
+        standardised_nhoods = [standardise_nhoods_sql(x, [list(x.values())[0] for x in london_nhoods_wiki]) for x in nhoods_rmv]
+        [standardised_nhoods.append(
+            standardise_nhoods_sql(x, [list(x.values())[0] for x in london_nhoods_wiki])) for x in no_match_nhoods]
+        std_timer_stop = timeit.default_timer()
 
-    print("Standardising all listings took {} seconds".format(std_timer_stop - std_timer_start))
+        print("Standardising all listings took {} seconds".format(std_timer_stop - std_timer_start))
 
-    nhoods_populate_query_many = """
-    INSERT INTO nhoods_uk
-    (nhood_id, nhood_name, rmv_id, polyline, in_london)
-     VALUES %s
-    """
+        nhoods_populate_query_many = """
+        INSERT INTO nhoods_uk
+        (nhood_id, nhood_name, rmv_id, polyline, in_london)
+         VALUES %s
+        """
 
-    print("Writing data to DB ...")
-    db_timer_start = timeit.default_timer()
-    with psycopg2.connect(general_constants.DB_URL, sslmode='allow') as conn:
-        with conn.cursor() as curs:
-            psycopg2.extras.execute_values(curs, nhoods_populate_query_many,
-                                           [tuple(x.values()) for x in standardised_nhoods])
+        print("Writing data to DB ...")
+        db_timer_start = timeit.default_timer()
+        with psycopg2.connect(general_constants.DB_URL, sslmode='allow') as conn:
+            with conn.cursor() as curs:
+                psycopg2.extras.execute_values(curs, nhoods_populate_query_many,
+                                               [tuple(x.values()) for x in standardised_nhoods])
 
-    db_timer_end = timeit.default_timer()
-    print("Finished writing to DB in {} seconds".format(db_timer_end - db_timer_start))
+        db_timer_end = timeit.default_timer()
+        print("Finished writing to DB in {} seconds".format(db_timer_end - db_timer_start))
 
-    # ------------ Populate nhoods_uk DB: end ---------------
+    if steps[Steps.CLEAN_DATA]:
+        clean_data()
 
-    clean_data()
+    if steps[Steps.WRITE_WEBFLOW]:
+        write_webflow_london_nhoods()
 
-    # ------------ London categorisations ---------------
-    print("Storing London neighbourhoods categorisations now ...")
-    write_db_london_nhoods_cats("london_nhood_cats.csv")
+    if steps[Steps.LONDON_CATS_NHOODS_DB_POPULATE]:
+        print("Storing London neighbourhoods categorisations now ...")
+        write_db_london_nhoods_cats("london_nhood_cats.csv")
+
+    else:
+        print("No steps enabled so quitting ...")
 
     timer_end = timeit.default_timer()
-
     print("Finished and it took {} seconds".format(timer_end - timer_start))
