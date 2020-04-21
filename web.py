@@ -50,15 +50,24 @@ def generate_user_config(criteria):
     except parser.ParserError:
         date_high = date_low = datetime.datetime.strftime(datetime.datetime.now(), "%Y-%m-%d %H:%M:%S")
 
+    # TODO: store form number in DB too to avoid hardcoding here (which will require redeploy every time)
+    if 'data__Email Address' not in criteria:
+        mapping = {
+            "Nectr Form1": "raduasandei@gmail.com"
+        }
+        email = mapping[criteria["name"]]
+    else:
+        email = criteria['data__Email Address']
+
     return {
-        "email": criteria['data__Email Address'],
+        "email": email,
         "date_low": date_low,
         "date_high": date_high,
         "radius": 0,
         "maxPrice": float(criteria['data__Rent']),
         "minBedrooms": int(criteria['data__Number Of Bedrooms']),
         "keywords": generate_keywords(criteria),
-        "desired_areas": [],
+        "desired_areas": generate_areas(criteria),
         "desired_cats": generate_cats(criteria),
         "destinations": [x for x in destinations]
     }
@@ -97,7 +106,11 @@ def generate_destinations(criteria):
 
 
 def generate_areas(criteria):
-    pass
+    desired_areas = []
+    for i in range(1, 4):
+        if criteria['data__Select-Area-{}'.format(i)] != "--":
+            desired_areas.append(criteria['data__Select-Area-{}'.format(i)])
+    return desired_areas
 
 
 def generate_cats(criteria):
@@ -138,7 +151,7 @@ def generate_keywords(criteria):
         keywords.append(general_constants.CheckboxFeatures.PROXIMITY_SUPERMARKET)
     if criteria["data__Has Parking Space"].lower() == 'true':
         keywords.append(general_constants.CheckboxFeatures.PARKING_SPACE)
-    if criteria["data__Has Concierge"].lower() == 'true':
+    if criteria["data__24hr concierge"].lower() == 'true':
         keywords.append(general_constants.CheckboxFeatures.CONCIERGE)
 
     return keywords

@@ -163,7 +163,7 @@ def upsert_user_db(user_config):
         "date_low": user_config['date_low'],
         "date_high": user_config['date_high'],
         "desired_cats": ','.join([x.name for x in user_config['desired_cats']]),
-        "desired_nhoods": ','.join([x.name for x in user_config['desired_areas']])
+        "desired_nhoods": ','.join([x for x in user_config['desired_areas']])
     }
 
     with psycopg2.connect(general_constants.DB_URL, sslmode='allow') as conn:
@@ -258,8 +258,10 @@ def write_webflow_cms(final_properties_list, user_config):
                              (final_properties_list[rmv_constants.RmvPropDetails.prop_uuid.name], content['_id']))
 
     else:
+        # TODO: the error occurs when rent-pcm = inf. Need to fix this so these props don't make it through the pipeline
         print("An error occurred for property ID {} writing to CMS: {}".format(
             final_properties_list[rmv_constants.RmvPropDetails.rmv_unique_link.name], r.content))
+        print("CULPRIT: {}".format(payload))
 
 
 def update_prop_status(prop_id, status):
@@ -351,6 +353,7 @@ def main(config):
 
     # Score properties before removing duplicates incase scoring has changed
     property_scorer = ranking.PropertyScorer()
+    print("Scoring properties now ...")
     [x.update(
         {"score": property_scorer.score(x, config['desired_areas'], config['desired_cats'], config['keywords'])})
         for x in filtered_properties]
@@ -385,6 +388,8 @@ def main(config):
                     print("Stored {} new filtered properties in DB.".format(len(standardised_filtered_listing)))
                     if not DEBUG:
                         [write_webflow_cms(x, config) for x in filtered_properties]
+                    else:
+                        print("Skipping writing to Webflow because DEBUG is {}".format(DEBUG))
 
         except Exception as e:
             print("Could not store some properties in DB: {}".format(e))

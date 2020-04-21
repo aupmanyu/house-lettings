@@ -35,7 +35,7 @@ class RmvScraper:
 
     def search_parallel(self):
         self._get_search_areas()
-        with mp.get_context("spawn").Pool(processes=25) as pool:
+        with mp.get_context("spawn").Pool(processes=15) as pool:
             properties_id_list = pool.map(self._search_summary, self.outcode_list)
             properties_id_list_flat = [item for sublist in properties_id_list for item in sublist]
             # results = pool.starmap(self.search, search_postcodes, **kwargs)
