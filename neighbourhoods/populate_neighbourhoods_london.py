@@ -17,7 +17,7 @@ import general_constants
 psycopg2.extras.register_uuid()
 
 
-class Steps:
+class Steps(Enum):
     UK_NHOODS_DB_POPULATE = 1
     CLEAN_DATA = 2
     WRITE_WEBFLOW = 3
@@ -170,7 +170,7 @@ def clean_data():
             if not greater_london_polygon.contains(geometry.Polygon(polyline.decode(each[2]))):
                 not_in_london.append(each[0])
         except IndexError:
-            if not greater_london_polygon.contains(geometry.Polygon(polyline.decode(each[2]+'@'))):
+            if not greater_london_polygon.contains(geometry.Polygon(polyline.decode(each[2] + '@'))):
                 not_in_london.append(each[0])
         except TypeError:
             pass
@@ -181,7 +181,110 @@ def clean_data():
             curs.execute(update_area_status_query, (tuple(not_in_london),))
 
 
-def write_webflow_london_nhoods():
+def write_webflow_london_nhoods(prioritised_only=True):
+    if prioritised_only:
+        nhoods_list = ["Acton",
+                       "Aldgate",
+                       "Angel",
+                       "Balham",
+                       "Barbican",
+                       "Battersea",
+                       "Bayswater",
+                       "Belgravia",
+                       "Bermondsey",
+                       "Bethnal Green",
+                       "Bexley",
+                       "Bexleyheath",
+                       "Blackfriars",
+                       "Bow",
+                       "Brixton",
+                       "Bromley",
+                       "Bromley Common",
+                       "Camberwell",
+                       "Camden Town",
+                       "Canary Wharf",
+                       "Canning Town",
+                       "Chalk Farm",
+                       "Charing Cross",
+                       "Chelsea",
+                       "Chinatown",
+                       "Chiswick",
+                       "Clapham",
+                       "Clerkenwell",
+                       "Covent Garden",
+                       "Croydon",
+                       "Dagenham",
+                       "Dalston",
+                       "Dulwich",
+                       "Earls Court",
+                       "Elephant and Castle",
+                       "Farringdon",
+                       "Finsbury Park",
+                       "Fulham",
+                       "Greenwich",
+                       "Hackney",
+                       "Hackney Central",
+                       "Hackney Wick",
+                       "Hammersmith",
+                       "Highbury",
+                       "Holborn",
+                       "Holland Park",
+                       "Hoxton",
+                       "Islington",
+                       "Kennington",
+                       "Kensington",
+                       "Kentish Town",
+                       "Knightsbridge",
+                       "Marylebone",
+                       "Mayfair",
+                       "Mile End",
+                       "Newington",
+                       "Notting Hill",
+                       "Oval",
+                       "Paddington",
+                       "Parsons Green",
+                       "Peckham",
+                       "Pimlico",
+                       "Putney",
+                       "Shadwell",
+                       "Shepherd's Bush",
+                       "Shoreditch",
+                       "Soho",
+                       "South Kensington",
+                       "Spitalfields",
+                       "St Pancras",
+                       "Stepney",
+                       "Stockwell",
+                       "Stoke Newington",
+                       "Stratford",
+                       "Streatham",
+                       "Temple",
+                       "Tooting",
+                       "Tottenham",
+                       "Tottenham Hale",
+                       "Tower Hill",
+                       "Vauxhall",
+                       "Walthamstow",
+                       "Wembley",
+                       "Westminster",
+                       "White City",
+                       "Whitechapel",
+                       "Wimbledon",
+                       "Woolwich"]
+
+        london_nhood_query = """
+            SELECT nhood_id, nhood_name 
+            FROM nhoods_uk
+            WHERE in_london is TRUE AND nhood_name = ANY(%s)
+        """
+
+    else:
+        london_nhood_query = """
+            SELECT nhood_id, nhood_name 
+            FROM nhoods_uk
+            WHERE in_london is TRUE
+            """
+
     url = "https://api.webflow.com/collections/{}/items".format(os.environ.get('WEBFLOW_COLLECTION_ID'))
 
     headers = {
@@ -190,28 +293,28 @@ def write_webflow_london_nhoods():
         "Content-Type": "application/json"
     }
 
-    london_nhood_query = """
-    SELECT nhood_id, nhood_name 
-    FROM nhoods_uk
-    WHERE in_london is TRUE
-    """
+
 
     print("Getting all neighbourhoods in London from DB ...")
     with psycopg2.connect(general_constants.DB_URL, sslmode='allow') as conn:
         with conn.cursor() as curs:
-            curs.execute(london_nhood_query, )
+            if prioritised_only:
+                curs.execute(london_nhood_query, (nhoods_list,))
+            else:
+                curs.execute(london_nhood_query,)
             data = curs.fetchall()
 
     for i, each in enumerate(data):
         payload = {
-                "fields": {
-                    "_archived": False,
-                    "_draft": False,
-                    "name": str(each[0]),
-                    "slug": each[1].replace(' ', '_').replace("'", '').replace(',', ''),  # required field by Webflow but doesn't accept spaces
-                    "nhood-name": each[1]
-                }
+            "fields": {
+                "_archived": False,
+                "_draft": False,
+                "name": str(each[0]),
+                "slug": each[1].replace(' ', '_').replace("'", '').replace(',', ''),
+                # required field by Webflow but doesn't accept spaces
+                "nhood-name": each[1]
             }
+        }
 
         try:
             print("Writing to Webflow CMS now ...")
@@ -242,7 +345,7 @@ if __name__ == '__main__':
     steps = {
         Steps.UK_NHOODS_DB_POPULATE: False,
         Steps.CLEAN_DATA: False,
-        Steps.WRITE_WEBFLOW: False,
+        Steps.WRITE_WEBFLOW: True,
         Steps.LONDON_CATS_NHOODS_DB_POPULATE: False
     }
 
@@ -259,7 +362,8 @@ if __name__ == '__main__':
 
         print("Standardising all nhoods now ...")
         std_timer_start = timeit.default_timer()
-        standardised_nhoods = [standardise_nhoods_sql(x, [list(x.values())[0] for x in london_nhoods_wiki]) for x in nhoods_rmv]
+        standardised_nhoods = [standardise_nhoods_sql(x, [list(x.values())[0] for x in london_nhoods_wiki]) for x in
+                               nhoods_rmv]
         [standardised_nhoods.append(
             standardise_nhoods_sql(x, [list(x.values())[0] for x in london_nhoods_wiki])) for x in no_match_nhoods]
         std_timer_stop = timeit.default_timer()
@@ -292,8 +396,6 @@ if __name__ == '__main__':
         print("Storing London neighbourhoods categorisations now ...")
         write_db_london_nhoods_cats("london_nhood_cats.csv")
 
-    else:
-        print("No steps enabled so quitting ...")
 
     timer_end = timeit.default_timer()
     print("Finished and it took {} seconds".format(timer_end - timer_start))
