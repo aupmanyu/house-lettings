@@ -1,6 +1,7 @@
 import uuid
 import psycopg2
 import polyline
+import traceback
 from shapely import geometry
 from collections import namedtuple
 from functools import reduce
@@ -37,13 +38,19 @@ class PropertyScorer:
 
         Score_Weight = namedtuple('Score_Weight', ['area', 'cat', 'keyword'])
         weights = Score_Weight(10, 0.5, 1)
-        result_areas = sum([int(x) for x in self._in_user_desired_areas(property_coords, user_desired_areas)
-                            if x is not None])
-        result_cats = sum([int(x) for x in self._in_user_desired_categories(property_coords, user_desired_cats)
-                           if x is not None])
-        result_keywords = sum([int(self._matches_keyword(x, description)) for x in user_keywords])
+        try:
+            result_areas = sum([int(x) for x in self._in_user_desired_areas(property_coords, user_desired_areas)
+                                if x is not None])
+            result_cats = sum([int(x) for x in self._in_user_desired_categories(property_coords, user_desired_cats)
+                               if x is not None])
+            result_keywords = sum([int(self._matches_keyword(x, description)) for x in user_keywords])
 
-        results = Score_Weight(result_areas, result_cats, result_keywords)
+            results = Score_Weight(result_areas, result_cats, result_keywords)
+
+        except Exception:
+            traceback.format_exc()
+            print("CULPRIT: {}".format(listing))
+            return 0
 
         return sum([a*b for a, b in zip(weights, results)])
 

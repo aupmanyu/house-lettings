@@ -151,7 +151,7 @@ def generate_keywords(criteria):
         keywords.append(general_constants.CheckboxFeatures.PROXIMITY_SUPERMARKET)
     if criteria["data__Has Parking Space"].lower() == 'true':
         keywords.append(general_constants.CheckboxFeatures.PARKING_SPACE)
-    if criteria["data__24hr concierge"].lower() == 'true':
+    if criteria["data__24hr Concierge"].lower() == 'true':
         keywords.append(general_constants.CheckboxFeatures.CONCIERGE)
 
     return keywords
