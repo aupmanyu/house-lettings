@@ -1,5 +1,6 @@
 import os
 import json
+from time import sleep
 import uuid
 import errno
 import random
@@ -50,15 +51,6 @@ def new_search(config):
     end = timeit.default_timer()
     print("It took {} seconds to get back all deets from the Internet".format(end - start))
 
-    if DEBUG:
-        output_file_all_data = USER_OUTPUT_DATA_PATH + '{}_{}.csv'.format(USER, util.time_now())
-        util.csv_writer(rmv_properties, output_file_all_data)
-        print("Created a backup of returned deets in file {}".format(output_file_all_data))
-
-        with open(USER_OUTPUT_DATA_PATH + '.lastrunall', 'w') as f:
-            f.write(output_file_all_data)
-            print("Updated cache file with backup location for faster access next time!")
-
     return rmv_properties
 
 
@@ -80,8 +72,8 @@ def remove_duplicates(user_uuid: uuid.UUID, curr_properties_list: list):
     print("Identifying any properties from previous runs that have the same scores so that these can be discarded ...")
 
     try:
-        indexed_curr_properties_list = [{x[rmv_constants.RmvPropDetails.rmv_unique_link.name]: x} for x in
-                                        curr_properties_list]
+        indexed_curr_properties = {x[rmv_constants.RmvPropDetails.rmv_unique_link.name]: x for x in
+                                        curr_properties_list}
 
         prev_filtered_properties_id_score = get_prev_filtered_props_id(user_uuid)
         curr_filtered_properties_id_score = {x[rmv_constants.RmvPropDetails.rmv_unique_link.name]: x["score"]
@@ -98,12 +90,20 @@ def remove_duplicates(user_uuid: uuid.UUID, curr_properties_list: list):
     # This is because sometimes code goes through the same RMV ID twice possibly because RMV returns same property
     # for different areas. This is guaranteed positive or 0 since indexed object will be unique
     # through dict construction and set is unique
-    curr_properties_duplicates = len(curr_properties_list) - len(indexed_curr_properties_list)
+    curr_properties_duplicates = len(curr_properties_list) - len(indexed_curr_properties)
 
     # duplicate_properties_id = curr_filtered_properties_id.intersection(prev_filtered_properties_id)
-
-    unique_properties = [list(x.values())[0] for x in indexed_curr_properties_list
-                         if list(x.keys())[0] not in duplicate_properties_id]
+    unique_properties = []
+    for x in indexed_curr_properties:
+        try:
+            if x not in duplicate_properties_id:
+                unique_properties.append(indexed_curr_properties[x])
+    # unique_properties = [list(x.values())[0] for x in indexed_curr_properties_list
+    #                  if x not in duplicate_properties_id]
+        except Exception:
+            traceback.format_exc()
+            print("Remove duplicates - CULPRIT: {}".format(x))
+        continue
 
     # for each in indexed_curr_properties_list:
     #     if list(each.keys())[0] not in duplicate_properties_id:
@@ -256,6 +256,12 @@ def write_webflow_cms(final_properties_list, user_config):
             with conn.cursor() as curs:
                 curs.execute(webflow_db_mapping_query,
                              (final_properties_list[rmv_constants.RmvPropDetails.prop_uuid.name], content['_id']))
+        try:
+            if int(r.headers['X-RateLimit-Remaining']) <= 1:  # 1 instead of 0 because of bug in Webflow API
+                print("Going to sleep for 70s to reset Webflow rate limit ...")
+                sleep(70)  # Sleep for 60s before making new requests to Webflow
+        except KeyError:
+            pass
 
     else:
         # TODO: the error occurs when rent-pcm = inf. Need to fix this so these props don't make it through the pipeline
@@ -371,20 +377,20 @@ def main(config):
         try:
             with psycopg2.connect(general_constants.DB_URL, sslmode='allow') as conn:
                 with conn.cursor() as curs:
-                    template = "%(user_uuid)s,%(prop_uuid)s,%(website_unique_id)s,%(url)s," \
-                               "%(date_sent_to_user)s,%(avg_travel_time_transit)s," \
-                               "%(avg_travel_time_walking)s,%(avg_travel_time_bicycling)s," \
-                               "%(avg_travel_time_driving)s,%(augment)s,%(score)s"
+                    # template = "%(user_uuid)s,%(prop_uuid)s,%(website_unique_id)s,%(url)s," \
+                    #            "%(date_sent_to_user)s,%(avg_travel_time_transit)s," \
+                    #            "%(avg_travel_time_walking)s,%(avg_travel_time_bicycling)s," \
+                    #            "%(avg_travel_time_driving)s,%(augment)s,%(score)s"
                     # print(curs.mogrify(template, standardised_filtered_listing[0]))
                     psycopg2.extras.execute_values(curs, insert_many_filtered_prop_query,
                                                    [tuple(x.values()) for x in standardised_filtered_listing],
                                                    template=None)
-
+                    template = "(%s::varchar, %s::int, %s)"
                     psycopg2.extras.execute_values(curs, insert_many_zone_address_query,
                                                    [(x[rmv_constants.RmvPropDetails.street_address.name],
                                                      x[rmv_constants.RmvPropDetails.zone_best_guess.name],
                                                      x[rmv_constants.RmvPropDetails.prop_uuid.name])
-                                                    for x in filtered_properties])
+                                                    for x in filtered_properties], template=template)
                     print("Stored {} new filtered properties in DB.".format(len(standardised_filtered_listing)))
                     if not DEBUG:
                         [write_webflow_cms(x, config) for x in filtered_properties]
@@ -393,6 +399,7 @@ def main(config):
 
         except Exception as e:
             print("Could not store some properties in DB: {}".format(e))
+            traceback.format_exc()
 
         print("All done now! Thanks for running!")
 

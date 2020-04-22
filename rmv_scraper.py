@@ -1,3 +1,4 @@
+import os
 import re
 import uuid
 import json
@@ -30,12 +31,13 @@ class RmvScraper:
         self.max_results_per_page = rmv_constants.MAX_RESULTS_PER_PAGE
         self.outcode_list = None
         self._parse_config(config)
+        self._num_procs = int(os.getenv("NUM_PROCS"))
         with open('rmv_outcode_lookup.json') as f:
             self._outcode_lookup = json.load(f)
 
     def search_parallel(self):
         self._get_search_areas()
-        with mp.get_context("spawn").Pool(processes=15) as pool:
+        with mp.get_context("spawn").Pool(processes=self._num_procs) as pool:
             properties_id_list = pool.map(self._search_summary, self.outcode_list)
             properties_id_list_flat = [item for sublist in properties_id_list for item in sublist]
             # results = pool.starmap(self.search, search_postcodes, **kwargs)
