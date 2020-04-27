@@ -47,9 +47,13 @@ def get_commute_times(properties: [dict], destinations: [str]):
                     print("Google didn't come back with a travel time so skipping ...")
                     pass
 
-            properties[idx]['avg_travel_time_{}'.format(k)] = (statistics.mean([v[k] for x in travel_times
+            try:
+                properties[idx]['avg_travel_time_{}'.format(k)] = (statistics.mean([v[k] for x in travel_times
                                                                                 if x is not None
                                                                                 for v in x.values()]))
+            except statistics.StatisticsError:
+                properties[idx]['avg_travel_time_{}'.format(k)] = None
+
 
 def get_property_zone(property_dict: dict):
     location = (property_dict[rmv_constants.RmvPropDetails.geo_lat.name],

@@ -1,0 +1,17 @@
+CREATE TABLE IF NOT EXISTS nhoods_cat (
+    nhood_id uuid REFERENCES nhoods_uk(nhood_id),
+    best int DEFAULT 0,
+    beautiful int DEFAULT 0,
+    luxurious int DEFAULT 0,
+    nightlife int DEFAULT 0,
+    eating int DEFAULT 0,
+    restaurants int DEFAULT 0,
+    shopping int DEFAULT 0,
+    walk int DEFAULT 0,
+    green int DEFAULT 0,
+    village int DEFAULT 0,
+    young_professional int DEFAULT 0,
+    students int DEFAULT 0,
+    family int DEFAULT 0,
+    artsy int DEFAULT 0
+);

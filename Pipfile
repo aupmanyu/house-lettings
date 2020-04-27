@@ -18,6 +18,8 @@ flask-executor = "*"
 psycopg2 = "*"
 flask-cors = "*"
 gunicorn = "*"
+polyline = "*"
+shapely = "*"
 
 [requires]
 python_version = "3.7"

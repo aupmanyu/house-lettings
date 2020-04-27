@@ -1,3 +1,4 @@
+import os
 import re
 import uuid
 import json
@@ -16,6 +17,7 @@ from calmjs.parse.asttypes import Assign, UnaryExpr
 from calmjs.parse.walkers import Walker
 from bs4 import BeautifulSoup
 
+import general_constants
 import rmv_constants
 import util
 
@@ -29,12 +31,13 @@ class RmvScraper:
         self.max_results_per_page = rmv_constants.MAX_RESULTS_PER_PAGE
         self.outcode_list = None
         self._parse_config(config)
+        self._num_procs = int(os.getenv("NUM_PROCS"))
         with open('rmv_outcode_lookup.json') as f:
             self._outcode_lookup = json.load(f)
 
     def search_parallel(self):
         self._get_search_areas()
-        with mp.get_context("spawn").Pool(processes=15) as pool:
+        with mp.get_context("spawn").Pool(processes=self._num_procs) as pool:
             properties_id_list = pool.map(self._search_summary, self.outcode_list)
             properties_id_list_flat = [item for sublist in properties_id_list for item in sublist]
             # results = pool.starmap(self.search, search_postcodes, **kwargs)
@@ -53,7 +56,6 @@ class RmvScraper:
             self.destinations = config['destinations']
             self.max_price = int(config['maxPrice'])
             self.min_bedrooms = config['minBedrooms']
-            self.keywords = config['keywords']
             self.radius = config['radius']
         except KeyError as e:
             raise e
@@ -139,8 +141,7 @@ class RmvScraper:
             "locationIdentifier": postcode_identifier.replace(' ', ''),
             "radius": self.radius,
             "minBedrooms": self.min_bedrooms,
-            "maxPrice": self.max_price,
-            "keywords": ','.join(self.keywords)
+            "maxPrice": self.max_price
         }
         data = requests.get(self.find_url, headers=headers, params=payload)
 
@@ -164,8 +165,7 @@ class RmvScraper:
             "radius": self.radius,
             "index": index,
             "minBedrooms": self.min_bedrooms,
-            "maxPrice": self.max_price,
-            "keywords": ','.join(self.keywords)
+            "maxPrice": self.max_price
         }
 
         try:
@@ -278,7 +278,7 @@ class RmvScraper:
                                     property_listing[field.name] = str(node.right.value).replace('"', '')
                             break
 
-            match = re.search('(\d+/\d+/\d+)', description_text)
+            match = re.search(r'(\d+/\d+/\d+)', description_text)
             if match:
                 property_listing[rmv_constants.RmvPropDetails.date_available.name] = \
                     datetime.datetime.strftime(parser.parse(match.group(1)), "%Y-%m-%d %H:%M:%S")
@@ -335,7 +335,7 @@ class RmvScraper:
                      property_profile[rmv_constants.RmvPropDetails.rmv_unique_link.name]))
 
         psycopg2.extras.register_uuid()
-        with psycopg2.connect(rmv_constants.DB_URL, sslmode='allow') as conn:
+        with psycopg2.connect(general_constants.DB_URL, sslmode='allow') as conn:
             with conn.cursor() as curs:
                 try:
                     curs.execute(insert_string,
