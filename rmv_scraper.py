@@ -1,6 +1,5 @@
 import os
 import re
-import uuid
 import json
 import datetime
 import dateutil.parser as parser

@@ -2,7 +2,6 @@ import os
 import json
 from time import sleep
 import uuid
-import errno
 import random
 import timeit
 import datetime
@@ -24,17 +23,7 @@ import travel_time
 import rmv_constants
 
 DEBUG = os.environ.get("DEBUG").lower() == 'true' or False
-USER = 'test_user'
-NEW_RUN = True
-
-WEBFLOW_COLLECTION_ID = "5e62aadc51beef34cfbc64d8"
-
-# ------------------------- // -------------------------
-
-USER_CONFIG_PATH = './users/{}/input/user_config.json'.format(USER)
-USER_OUTPUT_DATA_PATH = './users/{}/output/'.format(USER)
-USER_ALL_CACHE_FILE = USER_OUTPUT_DATA_PATH + '.lastrunall'
-USER_FILTER_CACHE_FILE = USER_OUTPUT_DATA_PATH + '.lastrunfiltered'
+WEBFLOW_COLLECTION_ID = os.environ.get("WEBFLOW_COLLECTION_ID")
 
 
 def new_search(config):
@@ -89,7 +78,7 @@ def remove_duplicates(user_uuid: uuid.UUID, curr_properties_list: list):
 
     # This is because sometimes code goes through the same RMV ID twice possibly because RMV returns same property
     # for different areas. This is guaranteed positive or 0 since indexed object will be unique
-    # through dict construction and set is unique
+    # through dict construction
     curr_properties_duplicates = len(curr_properties_list) - len(indexed_curr_properties)
 
     # duplicate_properties_id = curr_filtered_properties_id.intersection(prev_filtered_properties_id)
@@ -98,28 +87,11 @@ def remove_duplicates(user_uuid: uuid.UUID, curr_properties_list: list):
         try:
             if x not in duplicate_properties_id:
                 unique_properties.append(indexed_curr_properties[x])
-    # unique_properties = [list(x.values())[0] for x in indexed_curr_properties_list
-    #                  if x not in duplicate_properties_id]
+
         except Exception:
             traceback.format_exc()
             print("Remove duplicates - CULPRIT: {}".format(x))
         continue
-
-    # for each in indexed_curr_properties_list:
-    #     if list(each.keys())[0] not in duplicate_properties_id:
-    #         unique_properties.append(list(each.values())[0])
-    #
-    # for prop_id in duplicate_properties_id:
-    #     for each in indexed_curr_properties_list:
-    #         if prop_id in each.keys():
-    #             indexed_curr_properties_list.pop()
-
-    # for i, each in enumerate(curr_properties_list):
-    #     for k, v in each.items():
-    #         if k == rmv_constants.RmvPropDetails.rmv_unique_link.name:
-    #             if v in duplicate_properties_id:
-    #                 del curr_properties_list[i]
-    #             break
 
     print("Removed {} duplicates from previous runs".format(len(duplicate_properties_id) + curr_properties_duplicates))
 
@@ -128,7 +100,7 @@ def remove_duplicates(user_uuid: uuid.UUID, curr_properties_list: list):
 
 def upsert_user_db(user_config):
     psycopg2.extras.register_uuid()
-    user_uuid = util.gen_uuid()
+    temp_user_uuid = util.gen_uuid()
 
     insert_user_query = """
        INSERT INTO users 
@@ -154,7 +126,7 @@ def upsert_user_db(user_config):
     """
 
     user = {
-        "user_uuid": str(user_uuid),
+        "user_uuid": str(temp_user_uuid),
         "email": user_config['email'],
         "maxPrice": user_config["maxPrice"],
         "minBedrooms": user_config["minBedrooms"],
@@ -169,15 +141,15 @@ def upsert_user_db(user_config):
     with psycopg2.connect(general_constants.DB_URL, sslmode='allow') as conn:
         with conn.cursor() as curs:
             curs.execute(insert_user_query, tuple([*user.values()]))
-            user_uuid = curs.fetchone()[0]
+            db_user_uuid = curs.fetchone()[0]
             curs.execute(insert_user_transaction_query,
-                         (user_uuid,
+                         (temp_user_uuid,
                           datetime.datetime.strftime(datetime.datetime.now(), "%Y-%m-%d %H:%M:%S"),
                           json.dumps(user)))
 
-    print("Stored/updated user details with email {} in DB. UUID is {}".format(user_config['email'], user_uuid))
+    print("Stored/updated user details with email {} in DB. UUID is {}".format(user_config['email'], db_user_uuid))
 
-    return user_uuid
+    return db_user_uuid
 
 
 def standardise_filtered_listing(user_uuid: uuid.UUID, filtered_listing: dict):
@@ -314,17 +286,7 @@ def update_prop_status(prop_id, status):
 
 def main(config):
     user_uuid = upsert_user_db(config)
-    if NEW_RUN:
-        rmv_properties = new_search(config)
-    else:
-        try:
-            with open(USER_ALL_CACHE_FILE, 'r') as f:
-                backup_file = f.read()
-                print("This is a re-run so reading deets from backup file: {}".format(backup_file))
-                rmv_properties = util.csv_reader(backup_file)
-        except FileNotFoundError as e:
-            print("{}. Quitting now ...".format(e))
-            exit(errno.ENOENT)
+    rmv_properties = new_search(config)
 
     # Filtering properties
     lower_threshold = datetime.datetime.strptime(config['date_low'], "%Y-%m-%d %H:%M:%S") - datetime.timedelta(days=5)
@@ -410,14 +372,3 @@ def main(config):
 if __name__ == '__main__':
     psycopg2.extras.register_uuid()
     # filtered_properties = {'description': 'Letting information:Date available:NowFurnishing:FurnishedLetting type:Long termReduced on Rightmove: 13 March 2020 (28 minutes ago)Key featuresDouble BedroomsBalcony24 Hour ConciergeCommunal Roof TerraceResidents RoomCommunal GardensCommunal 24hr GymFull description        This is a stunning apartment within the South Gardens development, the first of the wider Elephant Park scheme. The apartment is set in the Baldwin Point tower.This apartment comprises of two double bedrooms, a bathroom an open plan reception with a fitted kitchen with Bosch appliances including a washer dryer and balcony.  The apartment is finished to a high internal specification including oak engineered wood flooring and underfloor heating throughout. Other benefits of the building include a 24 hour concierge, communal gardens and a communal roof terrace. South Gardens is perfectly located for transport links to the City, the West End and beyond with a range of local bus routes, the tube and National Rail services. The development features a residents gym, Communal Gardens, 24 hour concierge, communal residents room and communal roof terrace.More information from this agentTo view this media, please visit the on-line version of this page at www.rightmove.co.uk/property-to-rent/property-67134849.html?premiumA=trueParticularsEnergy Performance Certificate (EPC) graphsView EPC Rating Graph for this propertySee full size version online', 'postcode': 'SE17 1AF', 'geo_lat': '51.491705786609934', 'geo_long': '-0.08592939071585458', 'rmv_unique_link': '67134849', 'rent_pcm': '2296.6666666666665', 'beds': '2', 'estate_agent': 'Gordon & Co', 'estate_agent_address': 'Strata Pavillion, 4 Walworth Road, London, SE1 6EB', 'date_available': '2020-03-13 12:57:10', 'image_links': ['https://media.rightmove.co.uk/dir/70k/69202/67134849/69202_ELE170658_L_IMG_01_0000_max_656x437.jpg', 'https://media.rightmove.co.uk/dir/70k/69202/67134849/69202_ELE170658_L_IMG_02_0000_max_656x437.jpg', 'https://media.rightmove.co.uk/dir/70k/69202/67134849/69202_ELE170658_L_IMG_03_0000_max_656x437.jpg', 'https://media.rightmove.co.uk/dir/70k/69202/67134849/69202_ELE170658_L_IMG_04_0000_max_656x437.jpg', 'https://media.rightmove.co.uk/dir/70k/69202/67134849/69202_ELE170658_L_IMG_05_0000_max_656x437.jpg', 'https://media.rightmove.co.uk/dir/70k/69202/67134849/69202_ELE170658_L_IMG_06_0000_max_656x437.jpg', 'https://media.rightmove.co.uk/dir/70k/69202/67134849/69202_ELE170658_L_IMG_07_0000_max_656x437.jpg', 'https://media.rightmove.co.uk/dir/70k/69202/67134849/69202_ELE170658_L_IMG_08_0000_max_656x437.jpg'], 'floorplan_links': ['https://media.rightmove.co.uk/dir/70k/69202/67134849/69202_ELE170658_L_FLP_01_0000_max_600x600.jpg', 'https://media.rightmove.co.uk/dir/70k/69202/67134849/69202_ELE170658_L_FLP_01_0000_max_900x900.jpg', 'https://media.rightmove.co.uk/dir/70k/69202/67134849/69202_ELE170658_L_FLP_01_0000_max_1350x1350.jpg'], 'prop_uuid': UUID('428bb0b2-852c-49df-9114-df660fee4622'), 'url': 'https://www.rightmove.co.uk/property-to-rent/property-67134849.html', 'zone_best_guess': 1, 'street_address': '1 Townsend St, London SE17 1HY, UK', 'augment': {'travel_time': [{'EC1R 0EB': {'transit': 38.2, 'walking': 57.666666666666664, 'bicycling': 19.216666666666665, 'driving': 20.183333333333334}}, {'soho': {'transit': 30.0, 'walking': 66.48333333333333, 'bicycling': 21.933333333333334, 'driving': 24.8}}], 'nearby_station_zones': [{'Borough': '1'}]}, 'avg_travel_time_transit': 34.1, 'avg_travel_time_walking': 62.075, 'avg_travel_time_bicycling': 20.575, 'avg_travel_time_driving': 22.491666666666667}
-    DEBUG = True
-    try:
-        print("Trying to open user {} config file from this location {}".format(USER, USER_CONFIG_PATH))
-        with open(USER_CONFIG_PATH, 'r') as data_file:
-            config = json.load(data_file)
-    except FileNotFoundError:
-        print("Unable to find a config file for user {} at this location: {}. "
-              "Please make sure the file exists at the right location before running the code again"
-              .format(USER, USER_CONFIG_PATH))
-        exit(errno.ENOENT)
-    main(config)

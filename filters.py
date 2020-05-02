@@ -5,22 +5,22 @@ import rmv_constants
 import general_constants
 
 
-def keyword_filter(keyword: general_constants.CheckboxFeatures, description: str) -> bool:
+def keyword_filter(keyword: general_constants.Keywords, description: str) -> bool:
     # description = property_listing[rmv_constants.RmvPropDetails.description.name]
-    if keyword is general_constants.CheckboxFeatures.GARDEN:
+    if keyword is general_constants.Keywords.GARDEN:
         neg_lookbehind_list = ['no', 'hatton']
         neg_lookbehind_expr = ('(?<!{})' * len(neg_lookbehind_list)).format(*neg_lookbehind_list)
         match = re.search(r'{}(\sgardens*\b)'.format(neg_lookbehind_expr), description, re.IGNORECASE)
         return bool(match)
 
-    elif keyword is general_constants.CheckboxFeatures.PARKING_SPACE:
+    elif keyword is general_constants.Keywords.PARKING_SPACE:
         match = re.search(r'\w*(?<!no)(\sparking)', description, re.IGNORECASE)
         return bool(match)
 
-    elif keyword is general_constants.CheckboxFeatures.CONCIERGE:
+    elif keyword is general_constants.Keywords.CONCIERGE:
         return "concierge" in description
 
-    elif keyword is general_constants.CheckboxFeatures.NO_GROUND_FLOOR:
+    elif keyword is general_constants.Keywords.NO_GROUND_FLOOR:
         return "ground floor" not in description
 
     else:

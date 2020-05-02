@@ -11,7 +11,7 @@ class PropertyStatus(Enum):
     superliked = 'superliked'
 
 
-class CheckboxFeatures(Enum):
+class Keywords(Enum):
     WOODEN_FLOORS = 1
     NO_GROUND_FLOOR = 2
     OPEN_PLAN_KITCHEN = 3

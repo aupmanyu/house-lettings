@@ -11,8 +11,8 @@ def test_keyword_filtering():
     distinct_description_query = """
     SELECT distinct on (website_unique_id) description FROM property_listings;
     """
-    keywords = [general_constants.CheckboxFeatures.GARDEN, general_constants.CheckboxFeatures.CONCIERGE,
-                general_constants.CheckboxFeatures.PARKING_SPACE, general_constants.CheckboxFeatures.NO_GROUND_FLOOR]
+    keywords = [general_constants.Keywords.GARDEN, general_constants.Keywords.CONCIERGE,
+                general_constants.Keywords.PARKING_SPACE, general_constants.Keywords.NO_GROUND_FLOOR]
 
     with psycopg2.connect(general_constants.DB_URL, sslmode='allow') as conn:
         with conn.cursor() as curs:

@@ -33,7 +33,7 @@ def search():
 def update_prop_status():
     data = request.json
     print("Received data to update status of property {} to {}".format(data['slug'], data['status']))
-    main.update_prop_status(data['slug'], data['status'])
+    main.update_prop_sstaging/feature/categorise-neighbourhoodstatus(data['slug'], data['status'])
     return Response(json.dumps({"msg": "Successfully updated status"}), status=200, mimetype='application/json')
 
 
@@ -130,29 +130,29 @@ def generate_cats(criteria):
 def generate_keywords(criteria):
     keywords = []
     if criteria["data__Wooden Floors"].lower() == 'true':
-        keywords.append(general_constants.CheckboxFeatures.WOODEN_FLOORS)
+        keywords.append(general_constants.Keywords.WOODEN_FLOORS)
     if criteria["data__Not On Ground Floor"].lower() == 'true':
-        keywords.append(general_constants.CheckboxFeatures.NO_GROUND_FLOOR)
+        keywords.append(general_constants.Keywords.NO_GROUND_FLOOR)
     if criteria["data__Open Plan Kitchen"].lower() == 'true':
-        keywords.append(general_constants.CheckboxFeatures.OPEN_PLAN_KITCHEN)
+        keywords.append(general_constants.Keywords.OPEN_PLAN_KITCHEN)
     if criteria["data__Has Garden"].lower() == 'true':
-        keywords.append(general_constants.CheckboxFeatures.GARDEN)
+        keywords.append(general_constants.Keywords.GARDEN)
     if criteria["data__Close To Gym"].lower() == 'true':
-        keywords.append(general_constants.CheckboxFeatures.PROXIMITY_GYM)
+        keywords.append(general_constants.Keywords.PROXIMITY_GYM)
     if criteria["data__Not On Busy Street"].lower() == 'true':
-        keywords.append(general_constants.CheckboxFeatures.NO_LOUD_STREET)
+        keywords.append(general_constants.Keywords.NO_LOUD_STREET)
     if criteria["data__Park Nearby"].lower() == 'true':
-        keywords.append(general_constants.CheckboxFeatures.PROXIMITY_PARK)
+        keywords.append(general_constants.Keywords.PROXIMITY_PARK)
     if criteria["data__Is Bright"].lower() == 'true':
-        keywords.append(general_constants.CheckboxFeatures.BRIGHT)
+        keywords.append(general_constants.Keywords.BRIGHT)
     if criteria["data__Modern Interiors"].lower() == 'true':
-        keywords.append(general_constants.CheckboxFeatures.MODERN_INTERIORS)
+        keywords.append(general_constants.Keywords.MODERN_INTERIORS)
     if criteria["data__Close To Supermarket"].lower() == 'true':
-        keywords.append(general_constants.CheckboxFeatures.PROXIMITY_SUPERMARKET)
+        keywords.append(general_constants.Keywords.PROXIMITY_SUPERMARKET)
     if criteria["data__Has Parking Space"].lower() == 'true':
-        keywords.append(general_constants.CheckboxFeatures.PARKING_SPACE)
+        keywords.append(general_constants.Keywords.PARKING_SPACE)
     if criteria["data__24hr Concierge"].lower() == 'true':
-        keywords.append(general_constants.CheckboxFeatures.CONCIERGE)
+        keywords.append(general_constants.Keywords.CONCIERGE)
 
     return keywords
 

@@ -26,7 +26,7 @@ class PropertyScorer:
 
     def score(self, listing: dict, user_desired_areas: [str],
               user_desired_cats: [general_constants.NhoodCategorisation],
-              user_keywords: [general_constants.CheckboxFeatures]):
+              user_keywords: [general_constants.Keywords]):
 
         property_coords = self._extract_property_details(listing, 'coords')
 
@@ -82,7 +82,7 @@ class PropertyScorer:
         return self._in_user_desired_areas(property_coords, target_nhoods)
 
     @staticmethod
-    def _matches_keyword(keyword: general_constants.CheckboxFeatures, description: str):
+    def _matches_keyword(keyword: general_constants.Keywords, description: str):
         return filters.keyword_filter(keyword, description)
 
     def _get_areas_boundaries(self, areas_ids: [uuid]):
