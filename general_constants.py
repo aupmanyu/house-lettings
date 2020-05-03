@@ -1,8 +1,11 @@
 import os
 from enum import Enum
+from collections import namedtuple
 
 DB_URL = os.environ['DATABASE_URL']
 NEIGHBOURHOODS_URL = "https://en.wikipedia.org/wiki/List_of_areas_of_London"
+
+Coords = namedtuple("Coords", ["lat", "lon"])
 
 
 class PropertyStatus(Enum):

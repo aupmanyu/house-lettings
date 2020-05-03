@@ -310,8 +310,8 @@ def write_webflow_london_nhoods(prioritised_only=True):
                 "_archived": False,
                 "_draft": False,
                 "name": str(each[0]),
-                "slug": each[1].replace(' ', '_').replace("'", '').replace(',', ''),
                 # required field by Webflow but doesn't accept spaces
+                "slug": each[1].replace(' ', '_').replace("'", '').replace(',', ''),
                 "nhood-name": each[1]
             }
         }
