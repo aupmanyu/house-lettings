@@ -106,19 +106,23 @@ class RmvScraper:
         count = 0
         for poi in pois:
             for k, v in poi.items():
-                for mode in v['modes'][0]:
-                    count += 1
-                    rmv_poi = {
-                        "poiId": count,
-                        "travelType": rmv_constants.RmvTransportModes[mode].value.split(','),
-                        "location": {
-                            "lat": v['geocode'][0],
-                            "lng": v['geocode'][1]
-                        },
-                        "travelTime": v['modes'][0][mode] * 60,
-                        "placeType": "W"
-                    }
-                    yield rmv_poi
+                try:
+                    for mode in v['modes'][0]:
+                        count += 1
+                        rmv_poi = {
+                            "poiId": count,
+                            "travelType": rmv_constants.RmvTransportModes[mode].value.split(','),
+                            "location": {
+                                "lat": v['geocode'][0],
+                                "lng": v['geocode'][1]
+                            },
+                            "travelTime": v['modes'][0][mode] * 60,
+                            "placeType": "W"
+                        }
+                        yield rmv_poi
+                except IndexError:
+                    print("No modes provided for this POI: {}".format(poi))
+                continue
 
     def _search_summary(self, search_postcode: str):
         print("Searching through postcode {}".format(search_postcode))

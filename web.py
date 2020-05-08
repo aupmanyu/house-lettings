@@ -98,6 +98,14 @@ def generate_destinations(criteria):
                     rmv_constants.RmvTransportModes.bicycling.name: commute_time
                 })
 
+            # if all([criteria['data__Tube{}'.format(i)] == 'false',
+            #         criteria['data__Car{}'.format(i)] == 'false',
+            #         criteria['data__Walk{}'.format(i)] == 'false',
+            #         criteria['data__Bicycling{}'.format(i)] == 'false']):
+            #     modes.append({
+            #         rmv_constants.RmvTransportModes.transit.name: commute_time
+            #     })
+
             yield {
                 criteria['data__Commute Destination {}'.format(i)]: {
                     "modes": modes
