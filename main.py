@@ -224,7 +224,7 @@ def get_webflow_users():
     return user_mapping
 
 
-def write_webflow_cms(final_properties_list, user_config):
+def write_webflow_cms(final_properties_list, webflow_user_mapping, user_config):
     webflow_db_mapping_query = """
     INSERT INTO properties_cms_mapping 
     (prop_uuid, webflow_cms_id)
@@ -239,12 +239,6 @@ def write_webflow_cms(final_properties_list, user_config):
         "accept-version": "1.0.0",
         "Content-Type": "application/json"
     }
-
-    try:
-        user_mapping = get_webflow_users()
-
-    except requests.exceptions.HTTPError as e:
-        raise e
 
     payload = {
         "fields": {
@@ -262,7 +256,7 @@ def write_webflow_cms(final_properties_list, user_config):
             "image-4": final_properties_list[rmv_constants.RmvPropDetails.image_links.name][image_indices[3]],
             "score": final_properties_list['score'],
             "user-email": user_config['email'],
-            "user-email-2": user_mapping[user_config["webflow_form_number"]]
+            "user-email-2": webflow_user_mapping[user_config["webflow_form_number"]]
         }
     }
 
@@ -428,7 +422,8 @@ def main(config):
                                                     for x in filtered_properties], template=template)
                     print("Stored {} new filtered properties in DB.".format(len(standardised_filtered_listing)))
                     if not DEBUG:
-                        [write_webflow_cms(x, config) for x in filtered_properties]
+                        user_mapping = get_webflow_users()
+                        [write_webflow_cms(x, user_mapping, config) for x in filtered_properties]
                     else:
                         print("Skipping writing to Webflow because DEBUG is {}".format(DEBUG))
 
