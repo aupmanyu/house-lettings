@@ -1,4 +1,5 @@
 import os
+import sys
 import json
 from time import sleep
 import uuid
@@ -85,7 +86,7 @@ def remove_duplicates(user_uuid: uuid.UUID, curr_properties_list: list):
                 duplicate_properties_id.append(k)
 
     except (ValueError, KeyError):
-        traceback.format_exc()
+        print(traceback.format_exc(), file=sys.stderr)
 
     # This is because sometimes code goes through the same RMV ID twice possibly because RMV returns same property
     # for different areas. This is guaranteed positive or 0 since indexed object will be unique
@@ -101,7 +102,7 @@ def remove_duplicates(user_uuid: uuid.UUID, curr_properties_list: list):
     # unique_properties = [list(x.values())[0] for x in indexed_curr_properties_list
     #                  if x not in duplicate_properties_id]
         except Exception:
-            traceback.format_exc()
+            print(traceback.format_exc(), file=sys.stderr)
             print("Remove duplicates - CULPRIT: {}".format(x))
         continue
 
@@ -132,8 +133,9 @@ def upsert_user_db(user_config):
 
     insert_user_query = """
        INSERT INTO users 
-       (user_uuid, email, max_rent, min_beds, keywords, destinations, date_low, date_high, desired_cats, desired_nhoods)
-       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+       (user_uuid, email, max_rent, min_beds, keywords, destinations, date_low, date_high, desired_cats, desired_nhoods, 
+       webflow_form_number)
+       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
        ON CONFLICT (email)
        DO UPDATE
         SET max_rent = EXCLUDED.max_rent,
@@ -143,7 +145,8 @@ def upsert_user_db(user_config):
             date_low = EXCLUDED.date_low,
             date_high = EXCLUDED.date_high,
             desired_cats = EXCLUDED.desired_cats,
-            desired_nhoods = EXCLUDED.desired_nhoods
+            desired_nhoods = EXCLUDED.desired_nhoods,
+            webflow_form_number = EXCLUDED.webflow_form_number
        RETURNING (user_uuid)
        """
 
@@ -163,7 +166,8 @@ def upsert_user_db(user_config):
         "date_low": user_config['date_low'],
         "date_high": user_config['date_high'],
         "desired_cats": ','.join([x.name for x in user_config['desired_cats']]),
-        "desired_nhoods": ','.join([x for x in user_config['desired_areas']])
+        "desired_nhoods": ','.join([x for x in user_config['desired_areas']]),
+        "webflow_form_number": user_config["webflow_form_number"]
     }
 
     with psycopg2.connect(general_constants.DB_URL, sslmode='allow') as conn:
@@ -196,6 +200,30 @@ def standardise_filtered_listing(user_uuid: uuid.UUID, filtered_listing: dict):
     }
 
 
+def get_webflow_users():
+    url = "https://api.webflow.com/collections/5e9cb6cb572a494febd4efb3/items"
+
+    headers = {
+        "Authorization": "Bearer {}".format(os.environ['WEBFLOW_API_KEY']),
+        "accept-version": "1.0.0",
+        "Content-Type": "application/json"
+    }
+
+    user_mapping = {}
+    try:
+        r = requests.get(url, headers=headers)
+        r.raise_for_status()
+        data = r.json()
+
+        for each in data['items']:
+            user_mapping[int(each["name"])] = each["_id"]
+
+    except requests.exceptions.HTTPError as e:
+        raise e
+
+    return user_mapping
+
+
 def write_webflow_cms(final_properties_list, user_config):
     webflow_db_mapping_query = """
     INSERT INTO properties_cms_mapping 
@@ -212,6 +240,12 @@ def write_webflow_cms(final_properties_list, user_config):
         "Content-Type": "application/json"
     }
 
+    try:
+        user_mapping = get_webflow_users()
+
+    except requests.exceptions.HTTPError as e:
+        raise e
+
     payload = {
         "fields": {
             "_archived": False,
@@ -227,7 +261,8 @@ def write_webflow_cms(final_properties_list, user_config):
             "image-3": final_properties_list[rmv_constants.RmvPropDetails.image_links.name][image_indices[2]],
             "image-4": final_properties_list[rmv_constants.RmvPropDetails.image_links.name][image_indices[3]],
             "score": final_properties_list['score'],
-            "user-email": user_config['email']
+            "user-email": user_config['email'],
+            "user-id": user_mapping[user_config["webflow_form_number"]]
         }
     }
 
@@ -399,7 +434,7 @@ def main(config):
 
         except Exception as e:
             print("Could not store some properties in DB: {}".format(e))
-            traceback.format_exc()
+            print(traceback.format_exc(), file=sys.stderr)
 
         print("All done now! Thanks for running!")
 
