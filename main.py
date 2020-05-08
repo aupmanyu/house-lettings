@@ -434,7 +434,7 @@ def main(config):
     WHERE property_listings.prop_uuid = data.prop_uuid
     """
 
-    # Score properties before removing duplicates incase scoring has changed
+    # Score properties before removing duplicates in case scoring has changed
     property_scorer = ranking.PropertyScorer()
     print("Scoring properties now ...")
     [x.update(

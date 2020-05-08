@@ -1,7 +1,12 @@
+from __future__ import annotations
+
+from sys import stderr
 import uuid
 import psycopg2
 import polyline
 import traceback
+
+import requests.exceptions
 from shapely import geometry
 from collections import namedtuple
 from functools import reduce
@@ -9,6 +14,7 @@ from functools import reduce
 import filters
 import rmv_constants
 import general_constants
+from image_annotation import EveryPixelAnnotator, GoogleVisionAnnotator, BillingLimitException
 
 
 class PropertyScorer:
@@ -17,6 +23,7 @@ class PropertyScorer:
         self._db_conn = self._connect_db()
         self._london_areas_ids_names, self._london_polylines = self._get_london_areas_boundaries()
         self._london_cats = self._get_london_nhoods_cats()
+        self._image_annotator = ImageAnnotatorRouter()
 
     def __del__(self):
         self._db_conn.close()
@@ -32,36 +39,47 @@ class PropertyScorer:
 
         try:
             description = self._extract_property_details(listing, 'desc')
+            image_urls = self._extract_property_details(listing, 'images')
         except Exception as e:
             print(e)
             description = ''
+            image_urls = []
 
-        Score_Weight = namedtuple('Score_Weight', ['area', 'cat', 'keyword'])
-        weights = Score_Weight(10, 0.5, 1)
+        Score_Vector = namedtuple('Score_Vector', ['area', 'cat', 'keyword'])
+        weights = Score_Vector(10, 0.5, 1)
         try:
             result_areas = sum([int(x) for x in self._in_user_desired_areas(property_coords, user_desired_areas)
                                 if x is not None])
             result_cats = sum([int(x) for x in self._in_user_desired_categories(property_coords, user_desired_cats)
                                if x is not None])
-            result_keywords = sum([int(self._matches_keyword(x, description)) for x in user_keywords])
 
-            results = Score_Weight(result_areas, result_cats, result_keywords)
+            result_keywords = []
+            for keyword in user_keywords:
+                try:
+                    result_keywords.append(int(self._matches_keyword(keyword, description, image_urls)))
+                except (ValueError, FileNotFoundError, BillingLimitException, requests.exceptions.HTTPError):
+                    print(traceback.format_exc(), file=stderr)
+                    pass
+                continue
+
+            result_keywords = sum(result_keywords)
+            results = Score_Vector(result_areas, result_cats, result_keywords)
 
         except Exception:
-            traceback.format_exc()
+            print(traceback.format_exc(), file=stderr)
             print("CULPRIT: {}".format(listing))
             return 0
 
-        return sum([a*b for a, b in zip(weights, results)])
+        return sum([a * b for a, b in zip(weights, results)])
 
-    def _in_user_desired_areas(self, property_coords: tuple, user_desired_areas: [str]):
+    def _in_user_desired_areas(self, property_coords: tuple, user_desired_areas: [str]) -> [bool]:
         in_london = reduce(lambda x, y: x or y, [True for x in user_desired_areas
                                                  if x in self._london_areas_ids_names.values()], 0)
         london_polylines_lookup = {x.nhood_name: x for x in self._london_polylines}
         Point_XY = geometry.Point(property_coords)
         if in_london:
             target_areas = [self._decode_polyline(london_polylines_lookup[x].polyline)
-                            if london_polylines_lookup[x].polyline is not None else None for x in user_desired_areas ]
+                            if london_polylines_lookup[x].polyline is not None else None for x in user_desired_areas]
 
             return [geometry.Polygon(polygon).contains(Point_XY) if polygon is not None else None
                     for polygon in target_areas]
@@ -81,9 +99,41 @@ class PropertyScorer:
 
         return self._in_user_desired_areas(property_coords, target_nhoods)
 
+    def _matches_keyword(self, keyword: general_constants.CheckboxFeatures, description: str, image_urls: [str]) -> bool:
+        try:
+            if keyword in [general_constants.CheckboxFeatures.PARKING_SPACE,
+                           general_constants.CheckboxFeatures.NO_GROUND_FLOOR,
+                           general_constants.CheckboxFeatures.GARDEN,
+                           general_constants.CheckboxFeatures.CONCIERGE]:
+                return self._matches_keyword_text(keyword, description)
+            elif keyword in [general_constants.CheckboxFeatures.MODERN_INTERIORS,
+                             general_constants.CheckboxFeatures.WOODEN_FLOORS,
+                             general_constants.CheckboxFeatures.BRIGHT,
+                             general_constants.CheckboxFeatures.OPEN_PLAN_KITCHEN]:
+                return self._matches_keyword_vision(keyword, image_urls)
+            else:
+                raise ValueError("{msg: Keyword {} not supported".format(keyword))
+        except (ValueError, FileNotFoundError, requests.exceptions.HTTPError) as e:
+            raise e
+
     @staticmethod
-    def _matches_keyword(keyword: general_constants.CheckboxFeatures, description: str):
+    def _matches_keyword_text(keyword: general_constants.CheckboxFeatures, description: str) -> bool:
         return filters.keyword_filter(keyword, description)
+
+    def _matches_keyword_vision(self, keyword: general_constants.CheckboxFeatures, image_urls: [str]) -> bool:
+        decision = []
+        for image_url in image_urls:
+            try:
+                annotations = self._image_annotator.route(image_url, keyword)
+                if "modern" in annotations:
+                    decision.append(True)
+            except (ValueError, FileNotFoundError, requests.exceptions.HTTPError) as e:
+                raise e
+
+        if decision.count(True) >= 2:
+            return True
+        else:
+            return False
 
     def _get_areas_boundaries(self, areas_ids: [uuid]):
         get_polyline_query = """
@@ -148,10 +198,26 @@ class PropertyScorer:
                         float(listing[rmv_constants.RmvPropDetails.geo_long.name]))
             elif detail == 'desc':
                 return listing[rmv_constants.RmvPropDetails.description.name]
+            elif detail == 'images':
+                return listing[rmv_constants.RmvPropDetails.image_links.name]
             else:
-                raise ValueError("You need to provide a detail to extract. Possible values: coords, desc")
+                raise ValueError("You need to provide a detail to extract. Possible values: coords, desc, images")
         except Exception as e:
-            print("An error occurred filtering property: {}. CULPRIT: {} ".format(e, listing))
+            print("An error occurred extracting property field: {}. CULPRIT: {} ".format(e, listing))
+
+
+class ImageAnnotatorRouter(object):
+    def __init__(self):
+        self._ep_annotator = EveryPixelAnnotator()
+        self._gvision_annotator = GoogleVisionAnnotator()
+
+    def route(self, image_url: str, keyword: general_constants.CheckboxFeatures) -> dict:
+        if keyword is general_constants.CheckboxFeatures.MODERN_INTERIORS:
+            return self._ep_annotator.annotate(image_url)
+        elif keyword is general_constants.CheckboxFeatures.WOODEN_FLOORS:
+            return self._gvision_annotator.annotate(image_url)
+        else:
+            raise ValueError("Keyword {} not currently supported by image annotators".format(keyword))
 
 
 if __name__ == '__main__':
@@ -169,7 +235,13 @@ if __name__ == '__main__':
                                                        "bedroom apartment located on Hatton Garden, furnished, "
                                                        "modern fully fitted kitchen, plenty of natural light, "
                                                        "3 minutes walk in either direction to Farringdon or Chancery "
-                                                       "Lane tube Stations EPC Rating D "
+                                                       "Lane tube Stations EPC Rating D ",
+        rmv_constants.RmvPropDetails.image_links.name: ["https://media.rightmove.co.uk/dir/33k/32903/78125053/32903_1789749_IMG_01_0000_max_656x437.jpg",
+                                                        "https://media.rightmove.co.uk/dir/33k/32903/78125053/32903_1789749_IMG_02_0000_max_656x437.jpg",
+                                                        "https://media.rightmove.co.uk/dir/33k/32903/78125053/32903_1789749_IMG_03_0000_max_656x437.jpg",
+                                                        "https://media.rightmove.co.uk/dir/33k/32903/78125053/32903_1789749_IMG_04_0000_max_656x437.jpg",
+                                                        "https://media.rightmove.co.uk/dir/33k/32903/78125053/32903_1789749_IMG_05_0000_max_656x437.jpg",
+                                                        "https://media.rightmove.co.uk/dir/33k/32903/78125053/32903_1789749_IMG_06_0000_max_656x437.jpg"]
     }
 
     # in Soho (artsy), garden, parking, no ground floor keyword match - expected score 12.5
@@ -185,7 +257,18 @@ if __name__ == '__main__':
                                                        "bedrooms, Part tiled fitted bathroom with shower attachment, "
                                                        "Neutral decor, Fitted carpet, Wood Flooring, Gas central "
                                                        "heating, Double Glazing, Rear Garden and Off Street Parking "
-                                                       "big enough for two cars. "
+                                                       "big enough for two cars. ",
+        rmv_constants.RmvPropDetails.image_links.name: ["https://media.rightmove.co.uk/dir/56k/55234/21726857/55234_USRE3_IMG_04_0000_max_656x437.jpg",
+                                                        "https://media.rightmove.co.uk/dir/56k/55234/21726857/55234_USRE3_IMG_08_0000_max_656x437.JPG",
+                                                        "https://media.rightmove.co.uk/dir/56k/55234/21726857/55234_USRE3_IMG_09_0000_max_656x437.JPG",
+                                                        "https://media.rightmove.co.uk/dir/56k/55234/21726857/55234_USRE3_IMG_10_0000_max_656x437.JPG",
+                                                        "https://media.rightmove.co.uk/dir/56k/55234/21726857/55234_USRE3_IMG_11_0000_max_656x437.JPG",
+                                                        "https://media.rightmove.co.uk/dir/56k/55234/21726857/55234_USRE3_IMG_12_0000_max_656x437.JPG",
+                                                        "https://media.rightmove.co.uk/dir/56k/55234/21726857/55234_USRE3_IMG_13_0000_max_656x437.JPG",
+                                                        "https://media.rightmove.co.uk/dir/56k/55234/21726857/55234_USRE3_IMG_14_0000_max_656x437.JPG",
+                                                        "https://media.rightmove.co.uk/dir/56k/55234/21726857/55234_USRE3_IMG_15_0000_max_656x437.JPG",
+                                                        "https://media.rightmove.co.uk/dir/56k/55234/21726857/55234_USRE3_IMG_16_0000_max_656x437.JPG",
+                                                        "https://media.rightmove.co.uk/dir/56k/55234/21726857/55234_USRE3_IMG_17_0000_max_656x437.JPG"]
     }
 
     # in Bermondsey (artsy), parking space, no ground floor keyword match - expected score 2.5
@@ -206,7 +289,17 @@ if __name__ == '__main__':
                                                        "DLR and Greenwich Train station less than 10mins walk away, "
                                                        "connections into the City, Canary Wharf and Stratford are all "
                                                        "within easy reach. Available furnished from 8th May 2020 so "
-                                                       "could this be Ur perfect new home? More photos to be added. "
+                                                       "could this be Ur perfect new home? More photos to be added. ",
+        rmv_constants.RmvPropDetails.image_links.name: ["https://media.rightmove.co.uk/dir/97k/96668/78049624/96668_74183708032020_IMG_01_0000_max_656x437.jpg",
+                                                        "https://media.rightmove.co.uk/dir/97k/96668/78049624/96668_74183708032020_IMG_10_0000_max_656x437.jpg",
+                                                        "https://media.rightmove.co.uk/dir/97k/96668/78049624/96668_74183708032020_IMG_02_0000_max_656x437.jpg",
+                                                        "https://media.rightmove.co.uk/dir/97k/96668/78049624/96668_74183708032020_IMG_11_0000_max_656x437.jpg",
+                                                        "https://media.rightmove.co.uk/dir/97k/96668/78049624/96668_74183708032020_IMG_09_0000_max_656x437.jpg",
+                                                        "https://media.rightmove.co.uk/dir/97k/96668/78049624/96668_74183708032020_IMG_05_0000_max_656x437.jpg",
+                                                        "https://media.rightmove.co.uk/dir/97k/96668/78049624/96668_74183708032020_IMG_06_0000_max_656x437.jpg",
+                                                        "https://media.rightmove.co.uk/dir/97k/96668/78049624/96668_74183708032020_IMG_07_0000_max_656x437.jpg",
+                                                        "https://media.rightmove.co.uk/dir/97k/96668/78049624/96668_74183708032020_IMG_08_0000_max_656x437.jpg",
+                                                        "https://media.rightmove.co.uk/dir/97k/96668/78049624/96668_74183708032020_IMG_12_0000_max_656x437.jpg"]
     }
 
     # in Battersea (green, artsy), garden, no ground floor keyword match - expected score 3
@@ -280,15 +373,17 @@ if __name__ == '__main__':
     # property_coords_3 = (51.491746, -0.065278)  # in Bermondsey
     # property_coords_4 = (51.469138, -0.155479)  # in Battersea ("green" neighbourhood)
     # property_coords_5 = (51.512110, -0.070850)  # in Aldgate (not "green" neighbourhood)
-    # user_desired_areas = ['Soho', 'Islington', 'Angel', 'Hackney']
-    # user_desired_cats = [general_constants.NhoodCategorisation.green, general_constants.NhoodCategorisation.artsy]
-    # user_keywords = [general_constants.CheckboxFeatures.GARDEN, general_constants.CheckboxFeatures.CONCIERGE,
-    #                  general_constants.CheckboxFeatures.PARKING_SPACE,
-    #                  general_constants.CheckboxFeatures.NO_GROUND_FLOOR]
+    user_desired_areas = ['Soho', 'Islington', 'Angel', 'Hackney']
+    user_desired_cats = [general_constants.NhoodCategorisation.green, general_constants.NhoodCategorisation.artsy]
+    user_keywords = [general_constants.CheckboxFeatures.WOODEN_FLOORS,
+                     general_constants.CheckboxFeatures.MODERN_INTERIORS,
+                     general_constants.CheckboxFeatures.PARKING_SPACE,
+                     general_constants.CheckboxFeatures.NO_GROUND_FLOOR]
 
-    user_desired_areas = user_desired_cats = user_keywords = []
+    # user_desired_areas = user_desired_cats = user_keywords = []
 
     result_1 = ranker.score(listing_1, user_desired_areas, user_desired_cats, user_keywords)
+    result_1b = ranker.score(listing_1, user_desired_areas, user_desired_cats, user_keywords)  # to test cache
     result_2 = ranker.score(listing_2, user_desired_areas, user_desired_cats, user_keywords)
     result_3 = ranker.score(listing_3, user_desired_areas, user_desired_cats, user_keywords)
     result_4 = ranker.score(listing_4, user_desired_areas, user_desired_cats, user_keywords)

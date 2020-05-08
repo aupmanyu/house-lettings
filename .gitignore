@@ -4,6 +4,7 @@
 .env
 db/postico/
 text_analysis/
+apikey.json
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

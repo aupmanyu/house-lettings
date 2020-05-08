@@ -20,6 +20,7 @@ flask-cors = "*"
 gunicorn = "*"
 polyline = "*"
 shapely = "*"
+google-cloud-vision = "*"
 
 [requires]
 python_version = "3.7"
