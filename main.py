@@ -262,7 +262,7 @@ def write_webflow_cms(final_properties_list, user_config):
             "image-4": final_properties_list[rmv_constants.RmvPropDetails.image_links.name][image_indices[3]],
             "score": final_properties_list['score'],
             "user-email": user_config['email'],
-            "user-id": user_mapping[user_config["webflow_form_number"]]
+            "user-email-2": user_mapping[user_config["webflow_form_number"]]
         }
     }
 
