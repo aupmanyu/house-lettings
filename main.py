@@ -358,14 +358,20 @@ def main(config):
     # Filtering properties
     lower_threshold = datetime.datetime.strptime(config['date_low'], "%Y-%m-%d %H:%M:%S") - datetime.timedelta(days=5)
     upper_threshold = datetime.datetime.strptime(config['date_high'], "%Y-%m-%d %H:%M:%S") + datetime.timedelta(days=5)
-    filters_to_use = [partial(filters.enough_images_filter, threshold=6),
+    filters_to_use = [partial(filters.enough_images_filter, threshold=4),
                       partial(filters.date_available_filter,
                               lower_threshold=datetime.datetime.strftime(lower_threshold, "%Y-%m-%d %H:%M:%S"),
                               upper_threshold=datetime.datetime.strftime(upper_threshold, "%Y-%m-%d %H:%M:%S")),
-                      partial(filters.min_rent_filter, threshold=0.7 * config['maxPrice'])]
+                      partial(filters.min_rent_filter, threshold=0.55 * config['maxPrice'])]
 
     print("Filtering properties now ...")
-    filtered_properties = list(filter(lambda x: all(f(x) for f in filters_to_use), rmv_properties))
+    properties_to_filter = rmv_properties
+    for i, f in enumerate(filters_to_use):
+        filtered_properties = [x for x in properties_to_filter if f(x)]
+        print("Step {} Filter: Removed {} properties".format(i, len(properties_to_filter) - len(filtered_properties)))
+        properties_to_filter = filtered_properties
+
+    # filtered_properties = list(filter(lambda x: all(f(x) for f in filters_to_use), rmv_properties))
     print("Retained {} properties after filtering".format(len(filtered_properties)))
 
     insert_many_filtered_prop_query = """
