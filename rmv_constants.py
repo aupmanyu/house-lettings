@@ -12,6 +12,8 @@ MAX_RESULTS_PER_PAGE = 24
 PROPERTY_ID_FILTER = {"class": "l-searchResult is-list"}
 TOTAL_COUNT_FILTER = {"class": "searchHeader-resultCount"}
 
+PROPERTY_RENT_SPAN_ID = "propertyCard-priceValue"
+
 PROPERTY_DESCRIPTION_FILTER = {"class": "left overflow-hidden agent-content"}
 PROPERTY_DETAILS_FILTER = 'RIGHTMOVE.ANALYTICS.DataLayer.pushKV(k,v)'
 PROPERTY_IMAGES_FILTER = 'var imageGallery'
