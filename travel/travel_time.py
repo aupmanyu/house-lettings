@@ -60,7 +60,7 @@ def get_property_zone(property_dict: dict):
                 property_dict[rmv_constants.RmvPropDetails.geo_long.name])
     r = gmaps.places_nearby(location=location, radius=1200, type='subway_station')
 
-    with open('tube_stations_zone_mapping.json') as f:
+    with open('./travel/tube_stations_zone_mapping.json') as f:
         station_zones = json.load(f)
 
     # find zone of all stations nearby as returned by Google Maps
