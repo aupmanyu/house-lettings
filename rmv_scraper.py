@@ -1,6 +1,5 @@
 import os
 import re
-import uuid
 import json
 import datetime
 import dateutil.parser as parser
@@ -21,7 +20,6 @@ import general_constants
 import rmv_constants
 import util
 
-
 class RmvScraper:
 
     def __init__(self, config):
@@ -37,19 +35,36 @@ class RmvScraper:
 
     def search_parallel(self):
         self._get_search_areas()
+        properties_profiles = []
         with mp.get_context("spawn").Pool(processes=self._num_procs) as pool:
-            properties_id_list = pool.map(self._search_summary, self.outcode_list)
-            properties_id_list_flat = [item for sublist in properties_id_list for item in sublist]
-            # results = pool.starmap(self.search, search_postcodes, **kwargs)
-            print("Got back {} results and getting their profiles now".format(len(properties_id_list_flat)))
-            # print(properties_id_list_flat)
-            property_profiles = pool.map(self._get_property_details, properties_id_list_flat)
-            property_profiles = list(filter(lambda x: True if x is not None else False, property_profiles))
-            print("Got back profiles for {} properties".format(len(property_profiles)))
+            properties_ids = pool.map(self._search_summary, self.outcode_list)
+            properties_ids_flat = [item for sublist in properties_ids for item in sublist]
+            chunksize, extra = divmod(len(properties_ids_flat), self._num_procs * 4)
+            if extra:
+                chunksize += 1
+            for profiles in pool.imap_unordered(self._get_property_details, properties_ids_flat, chunksize=chunksize):
+                properties_profiles.append(profiles)
+                print("Gone through {} properties ...".format(len(properties_profiles)))
 
-        [self._insert_to_db(x) for x in property_profiles]
+            # results = pool.starmap(self.search, search_postcodes, **kwargs)
+            # print("Got back {} results and getting their profiles now".format(len(properties_id_list_flat)))
+            # # print(properties_id_list_flat)
+            # property_profiles = pool.map(self._get_property_details, properties_id_list_flat)
+            properties_profiles = list(filter(lambda x: True if x is not None else False, properties_profiles))
+
+        print("Got back profiles for {} properties".format(len(properties_profiles)))
+
+        [self._insert_to_db(x) for x in properties_profiles]
         print("Finished storing all listings in DB")
-        return property_profiles
+        return properties_profiles
+
+    def rmv_worker(self, outcode: str) -> [{}]:
+        properties_ids = self._search_summary(outcode)
+        properties_profiles = []
+        for id in properties_ids:
+            properties_profiles.append(self._get_property_details(id))
+
+        return properties_profiles
 
     def _parse_config(self, config):
         try:
