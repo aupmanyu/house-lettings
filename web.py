@@ -1,5 +1,6 @@
 import json
 import datetime
+import psycopg2
 from dateutil import parser
 from flask import Flask, request, Response
 from flask_cors import cross_origin
@@ -50,12 +51,18 @@ def generate_user_config(criteria):
     except parser.ParserError:
         date_high = date_low = datetime.datetime.strftime(datetime.datetime.now(), "%Y-%m-%d %H:%M:%S")
 
+    webflow_form_number = int(criteria['name'][-1])
     # TODO: store form number in DB too to avoid hardcoding here (which will require redeploy every time)
     if 'data__Email Address' not in criteria:
-        mapping = {
-            "Nectr Form1": "raduasandei@gmail.com"
-        }
-        email = mapping[criteria["name"]]
+        find_user_email_query = """
+        SELECT email from users
+        WHERE webflow_form_number = %s
+        """
+        with psycopg2.connect(general_constants.DB_URL, sslmode='allow') as conn:
+            with conn.cursor() as curs:
+                curs.execute(find_user_email_query, (webflow_form_number,))
+                data = curs.fetchone()
+        email = data[0]
     else:
         email = criteria['data__Email Address']
 
@@ -69,7 +76,8 @@ def generate_user_config(criteria):
         "keywords": generate_keywords(criteria),
         "desired_areas": generate_areas(criteria),
         "desired_cats": generate_cats(criteria),
-        "destinations": [x for x in destinations]
+        "destinations": [x for x in destinations],
+        "webflow_form_number": webflow_form_number
     }
 
 

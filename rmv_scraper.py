@@ -1,6 +1,5 @@
 import os
 import re
-import uuid
 import json
 import datetime
 import dateutil.parser as parser
@@ -15,12 +14,11 @@ import psycopg2.errors
 from calmjs.parse import es5
 from calmjs.parse.asttypes import Assign, UnaryExpr
 from calmjs.parse.walkers import Walker
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 
 import general_constants
 import rmv_constants
 import util
-
 
 class RmvScraper:
 
@@ -37,24 +35,45 @@ class RmvScraper:
 
     def search_parallel(self):
         self._get_search_areas()
+        properties_profiles = []
         with mp.get_context("spawn").Pool(processes=self._num_procs) as pool:
-            properties_id_list = pool.map(self._search_summary, self.outcode_list)
-            properties_id_list_flat = [item for sublist in properties_id_list for item in sublist]
-            # results = pool.starmap(self.search, search_postcodes, **kwargs)
-            print("Got back {} results and getting their profiles now".format(len(properties_id_list_flat)))
-            # print(properties_id_list_flat)
-            property_profiles = pool.map(self._get_property_details, properties_id_list_flat)
-            property_profiles = list(filter(lambda x: True if x is not None else False, property_profiles))
-            print("Got back profiles for {} properties".format(len(property_profiles)))
+            properties_ids = pool.map(self._search_summary, self.outcode_list)
+            properties_ids_flat = [item for sublist in properties_ids for item in sublist]
+            chunksize, extra = divmod(len(properties_ids_flat), self._num_procs * 4)
+            if extra:
+                chunksize += 1
+            for profiles in pool.imap_unordered(self._get_property_details, properties_ids_flat, chunksize=chunksize):
+                properties_profiles.append(profiles)
+                print("Gone through {} properties ...".format(len(properties_profiles)))
 
-        [self._insert_to_db(x) for x in property_profiles]
+            # results = pool.starmap(self.search, search_postcodes, **kwargs)
+            # print("Got back {} results and getting their profiles now".format(len(properties_id_list_flat)))
+            # # print(properties_id_list_flat)
+            # property_profiles = pool.map(self._get_property_details, properties_id_list_flat)
+            properties_profiles = list(filter(lambda x: True if x is not None else False, properties_profiles))
+
+        print("Got back profiles for {} properties".format(len(properties_profiles)))
+
+        [self._insert_to_db(x) for x in properties_profiles]
         print("Finished storing all listings in DB")
-        return property_profiles
+        return properties_profiles
+
+    def rmv_worker(self, outcode: str) -> [{}]:
+        properties_ids = self._search_summary(outcode)
+        properties_profiles = []
+        for id in properties_ids:
+            properties_profiles.append(self._get_property_details(id))
+
+        return properties_profiles
 
     def _parse_config(self, config):
         try:
             self.destinations = config['destinations']
-            self.max_price = int(config['maxPrice'])
+            self.max_rent = int(config['maxPrice'])
+            # multiply max rent by 1.5 to avoid excluding some areas from RMV since RMV search doesn't behave as
+            # expected and sometimes removes entire areas even though there are properties within
+            # that meet the price requirement
+            self.max_price_search = int(self.max_rent * 1.5)
             self.min_bedrooms = config['minBedrooms']
             self.radius = config['radius']
         except KeyError as e:
@@ -71,7 +90,7 @@ class RmvScraper:
 
         payload = {
             "criteria": {
-                "price": self.max_price,
+                "price": self.max_price_search,
                 "bedrooms": self.min_bedrooms,
                 "propertyType": "ALL",
                 "transactionType": 2  # constant as 2 is for rent
@@ -145,13 +164,13 @@ class RmvScraper:
             "locationIdentifier": postcode_identifier.replace(' ', ''),
             "radius": self.radius,
             "minBedrooms": self.min_bedrooms,
-            "maxPrice": self.max_price
+            "maxPrice": self.max_price_search
         }
         data = requests.get(self.find_url, headers=headers, params=payload)
 
         if data.status_code == 200:
             soup = BeautifulSoup(data.text, "html.parser")
-            total_count = int((soup.find("span", xpath_total_count)).contents[0])
+            total_count = int((soup.find("span", xpath_total_count)).contents[0].replace(',', ''))
             return total_count
 
     def _get_properties_summary(self, postcode_identifier: str, index=None):
@@ -163,13 +182,14 @@ class RmvScraper:
             'User-Agent': util.gen_random_user_agent()
         }
         xpath_property_card = rmv_constants.PROPERTY_ID_FILTER
+
         properties_id_list = []
         payload = {
             "locationIdentifier": postcode_identifier.replace(' ', ''),
             "radius": self.radius,
             "index": index,
             "minBedrooms": self.min_bedrooms,
-            "maxPrice": self.max_price
+            "maxPrice": self.max_price_search
         }
 
         try:
@@ -178,7 +198,17 @@ class RmvScraper:
                 soup = BeautifulSoup(data.text, "html.parser")
                 properties_soup = soup.find_all("div", xpath_property_card)
                 for prop in properties_soup:
-                    properties_id_list.append(prop.get('id'))
+                    target_div = list(prop.children)[1].contents[3].contents[7]
+                    for descendant in target_div.descendants:
+                        if isinstance(descendant, Tag):
+                            try:
+                                if rmv_constants.PROPERTY_RENT_SPAN_ID in descendant.get("class"):
+                                    if int(str(descendant.next).strip('£').strip('pcm').replace(',', '')) <= \
+                                            self.max_rent:
+                                        properties_id_list.append(prop.get('id'))
+                            except (TypeError, ValueError):
+                                pass
+                        continue
 
         except (TimeoutError, urllib3.exceptions.MaxRetryError, requests.exceptions.ConnectionError) as e:
             print("An error occurred getting url {}: {}".format(data.url, e))
