@@ -25,6 +25,8 @@ from travel import travel_time
 import rmv_constants
 
 DEBUG = os.environ.get("DEBUG").lower() == 'true' or False
+MAX_USER_RESULTS = int(os.environ.get("MAX_USER_RESULTS"))
+
 USER = 'test_user'
 NEW_RUN = True
 
@@ -400,21 +402,41 @@ def main(config):
     # Filtering properties
     lower_threshold = datetime.datetime.strptime(config['date_low'], "%Y-%m-%d %H:%M:%S") - datetime.timedelta(days=5)
     upper_threshold = datetime.datetime.strptime(config['date_high'], "%Y-%m-%d %H:%M:%S") + datetime.timedelta(days=5)
-    filters_to_use = [partial(filters.enough_images_filter, threshold=4),
-                      partial(filters.date_available_filter,
-                              lower_threshold=datetime.datetime.strftime(lower_threshold, "%Y-%m-%d %H:%M:%S"),
-                              upper_threshold=datetime.datetime.strftime(upper_threshold, "%Y-%m-%d %H:%M:%S")),
-                      partial(filters.min_rent_filter, threshold=0.55 * config['maxPrice'])]
 
-    print("Filtering properties now ...")
+    images_threshold = 4
+    min_rent_factor = 0.55
+
     properties_to_filter = rmv_properties
-    for i, f in enumerate(filters_to_use):
-        filtered_properties = [x for x in properties_to_filter if f(x)]
-        print("Step {} Filter: Removed {} properties".format(i, len(properties_to_filter) - len(filtered_properties)))
-        properties_to_filter = filtered_properties
+    while True:
+        print("Filtering criteria: Images Threshold: {}. Min Rent Factor: {}".format(images_threshold, min_rent_factor))
+        filters_to_use = [partial(filters.enough_images_filter, threshold=images_threshold),
+                          partial(filters.date_available_filter,
+                                  lower_threshold=datetime.datetime.strftime(lower_threshold, "%Y-%m-%d %H:%M:%S"),
+                                  upper_threshold=datetime.datetime.strftime(upper_threshold, "%Y-%m-%d %H:%M:%S")),
+                          partial(filters.min_rent_filter, threshold=min_rent_factor * config['maxPrice'])]
 
-    # filtered_properties = list(filter(lambda x: all(f(x) for f in filters_to_use), rmv_properties))
-    print("Retained {} properties after filtering".format(len(filtered_properties)))
+        print("Filtering properties now ...")
+        for i, f in enumerate(filters_to_use):
+            filtered_properties = [x for x in properties_to_filter if f(x)]
+            print("Step {} Filter: Removed {} properties".format(i, len(properties_to_filter) - len(filtered_properties)))
+            properties_to_filter = filtered_properties
+
+        # filtered_properties = list(filter(lambda x: all(f(x) for f in filters_to_use), rmv_properties))
+        print("Retained {} properties after filtering".format(len(filtered_properties)))
+
+        if len(filtered_properties) <= MAX_USER_RESULTS:
+            break
+
+        if images_threshold < 6:
+            images_threshold += 1
+
+        if min_rent_factor < 0.8:
+            min_rent_factor += 0.05
+
+        if images_threshold > 6 or min_rent_factor > 0.8:
+            break
+
+        print("Updating filtering criteria ...")
 
     insert_many_filtered_prop_query = """
     INSERT into filtered_properties 
@@ -445,11 +467,13 @@ def main(config):
     filtered_properties = remove_duplicates(user_uuid, filtered_properties)
 
     if filtered_properties:
+        sorted_filtered_properties = sorted(filtered_properties, key=lambda k: k['score'], reverse=True)
+        top_results = sorted_filtered_properties[:MAX_USER_RESULTS]
         # no list comprehension needed for commute times because GMAPS API can take in 25 x 25 (origins x destinations)
         print("Getting travel times and zones for properties now ...")
-        travel_time.get_commute_times(filtered_properties, [k for x in config['destinations'] for k in x.keys()])
-        [travel_time.get_property_zone(x) for x in filtered_properties]
-        standardised_filtered_listing = [standardise_filtered_listing(user_uuid, x) for x in filtered_properties]
+        travel_time.get_commute_times(top_results, [k for x in config['destinations'] for k in x.keys()])
+        [travel_time.get_property_zone(x) for x in top_results]
+        standardised_filtered_listing = [standardise_filtered_listing(user_uuid, x) for x in top_results]
 
         try:
             with psycopg2.connect(general_constants.DB_URL, sslmode='allow') as conn:
@@ -467,11 +491,11 @@ def main(config):
                                                    [(x[rmv_constants.RmvPropDetails.street_address.name],
                                                      x[rmv_constants.RmvPropDetails.zone_best_guess.name],
                                                      x[rmv_constants.RmvPropDetails.prop_uuid.name])
-                                                    for x in filtered_properties], template=template)
+                                                    for x in top_results], template=template)
                     print("Stored {} new filtered properties in DB.".format(len(standardised_filtered_listing)))
                     if not DEBUG:
                         user_mapping = get_webflow_users()
-                        [write_webflow_cms(x, user_mapping, config) for x in filtered_properties]
+                        [write_webflow_cms(x, user_mapping, config) for x in top_results]
                     else:
                         print("Skipping writing to Webflow because DEBUG is {}".format(DEBUG))
 

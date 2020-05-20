@@ -39,9 +39,12 @@ class RmvScraper:
         with mp.get_context("spawn").Pool(processes=self._num_procs) as pool:
             properties_ids = pool.map(self._search_summary, self.outcode_list)
             properties_ids_flat = [item for sublist in properties_ids for item in sublist]
+            print("Got back {} properties".format(len(properties_ids_flat)))
             chunksize, extra = divmod(len(properties_ids_flat), self._num_procs * 4)
             if extra:
                 chunksize += 1
+            if len(properties_ids_flat) == 0:
+                return []
             for profiles in pool.imap_unordered(self._get_property_details, properties_ids_flat, chunksize=chunksize):
                 properties_profiles.append(profiles)
                 print("Gone through {} properties ...".format(len(properties_profiles)))
@@ -170,7 +173,11 @@ class RmvScraper:
 
         if data.status_code == 200:
             soup = BeautifulSoup(data.text, "html.parser")
-            total_count = int((soup.find("span", xpath_total_count)).contents[0].replace(',', ''))
+            try:
+                total_count = int((soup.find("span", xpath_total_count)).contents[0].replace(',', ''))
+            except AttributeError:
+                total_count = 0
+
             return total_count
 
     def _get_properties_summary(self, postcode_identifier: str, index=None):
