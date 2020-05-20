@@ -39,11 +39,13 @@ def update_prop_status():
 
 
 def generate_user_config(criteria):
-    destinations = generate_destinations(criteria)
+    webflow_form_number = int(criteria["name"][-1])
+    user_data = criteria["data"]
+    destinations = generate_destinations(user_data)
     try:
-        date_low = datetime.datetime.strftime(parser.parse(criteria['data__Move In Date'].split('-')[0]),
+        date_low = datetime.datetime.strftime(parser.parse(user_data['Move In Date'].split('-')[0]),
                                                "%Y-%m-%d %H:%M:%S")
-        date_high = datetime.datetime.strftime(parser.parse(criteria['data__Move In Date'].split('-')[1]),
+        date_high = datetime.datetime.strftime(parser.parse(user_data['Move In Date'].split('-')[1]),
                                                "%Y-%m-%d %H:%M:%S")
     except IndexError:
         date_high = date_low
@@ -51,9 +53,7 @@ def generate_user_config(criteria):
     except parser.ParserError:
         date_high = date_low = datetime.datetime.strftime(datetime.datetime.now(), "%Y-%m-%d %H:%M:%S")
 
-    webflow_form_number = int(criteria['name'][-1])
-    # TODO: store form number in DB too to avoid hardcoding here (which will require redeploy every time)
-    if 'data__Email Address' not in criteria:
+    if 'Email Address' not in user_data:
         find_user_email_query = """
         SELECT email from users
         WHERE webflow_form_number = %s
@@ -64,18 +64,18 @@ def generate_user_config(criteria):
                 data = curs.fetchone()
         email = data[0]
     else:
-        email = criteria['data__Email Address']
+        email = user_data['Email Address']
 
     return {
         "email": email,
         "date_low": date_low,
         "date_high": date_high,
         "radius": 0,
-        "maxPrice": float(criteria['data__Rent']),
-        "minBedrooms": int(criteria['data__Number Of Bedrooms']),
-        "keywords": generate_keywords(criteria),
-        "desired_areas": generate_areas(criteria),
-        "desired_cats": generate_cats(criteria),
+        "maxPrice": float(user_data['Rent']),
+        "minBedrooms": int(user_data['Number Of Bedrooms']),
+        "keywords": generate_keywords(user_data),
+        "desired_areas": generate_areas(user_data),
+        "desired_cats": generate_cats(user_data),
         "destinations": [x for x in destinations],
         "webflow_form_number": webflow_form_number
     }
@@ -83,39 +83,39 @@ def generate_user_config(criteria):
 
 def generate_destinations(criteria):
     for i in range(1, 4):
-        if criteria['data__Commute Destination {}'.format(i)]:
+        if criteria['Commute Destination {}'.format(i)]:
             modes = []
-            commute_time = float(criteria['data__commute time {}'.format(i)].strip('<').strip('mins'))
-            if criteria['data__Tube{}'.format(i)] == 'true':
+            commute_time = float(criteria['commute time {}'.format(i)].strip('<').strip('mins'))
+            if criteria['Tube{}'.format(i)] == 'true':
                 modes.append(
                     {
                         rmv_constants.RmvTransportModes.transit.name: commute_time
                     })
-            if criteria['data__Car{}'.format(i)] == 'true':
+            if criteria['Car{}'.format(i)] == 'true':
                 modes.append(
                     {
                         rmv_constants.RmvTransportModes.driving.name: commute_time
                     })
-            if criteria['data__Walk{}'.format(i)] == 'true':
+            if criteria['Walk{}'.format(i)] == 'true':
                 modes.append(
                     {
                         rmv_constants.RmvTransportModes.walking.name: commute_time
                     })
-            if criteria['data__Bicycling{}'.format(i)] == 'true':
+            if criteria['Bicycling{}'.format(i)] == 'true':
                 modes.append({
                     rmv_constants.RmvTransportModes.bicycling.name: commute_time
                 })
 
-            # if all([criteria['data__Tube{}'.format(i)] == 'false',
-            #         criteria['data__Car{}'.format(i)] == 'false',
-            #         criteria['data__Walk{}'.format(i)] == 'false',
-            #         criteria['data__Bicycling{}'.format(i)] == 'false']):
+            # if all([criteria['Tube{}'.format(i)] == 'false',
+            #         criteria['Car{}'.format(i)] == 'false',
+            #         criteria['Walk{}'.format(i)] == 'false',
+            #         criteria['Bicycling{}'.format(i)] == 'false']):
             #     modes.append({
             #         rmv_constants.RmvTransportModes.transit.name: commute_time
             #     })
 
             yield {
-                criteria['data__Commute Destination {}'.format(i)]: {
+                criteria['Commute Destination {}'.format(i)]: {
                     "modes": modes
                 }
             }
@@ -124,20 +124,20 @@ def generate_destinations(criteria):
 def generate_areas(criteria):
     desired_areas = []
     for i in range(1, 4):
-        if criteria['data__Select-Area-{}'.format(i)] != "--":
-            desired_areas.append(criteria['data__Select-Area-{}'.format(i)])
+        if criteria['Select-Area-{}'.format(i)] != "--":
+            desired_areas.append(criteria['Select-Area-{}'.format(i)])
     return desired_areas
 
 
 def generate_cats(criteria):
     cats = [general_constants.NhoodCategorisation.best, general_constants.NhoodCategorisation.beautiful]
-    if criteria['data__A Night Out'].lower() == 'true':
+    if criteria['A Night Out'].lower() == 'true':
         cats.append(general_constants.NhoodCategorisation.nightlife)
-    if criteria['data__5Star-Dining-Experience'].lower() == 'true':
+    if criteria['5Star-Dining-Experience'].lower() == 'true':
         cats.extend([general_constants.NhoodCategorisation.eating, general_constants.NhoodCategorisation.restaurants])
-    if criteria['data__Lots-Of-Green-Space'].lower() == 'true':
+    if criteria['Lots-Of-Green-Space'].lower() == 'true':
         cats.extend([general_constants.NhoodCategorisation.green, general_constants.NhoodCategorisation.village])
-    if criteria['data__Shop-Till-You-Drop'].lower() == 'true':
+    if criteria['Shop-Till-You-Drop'].lower() == 'true':
         cats.append(general_constants.NhoodCategorisation.shopping)
 
     return cats
@@ -145,29 +145,29 @@ def generate_cats(criteria):
 
 def generate_keywords(criteria):
     keywords = []
-    if criteria["data__Wooden Floors"].lower() == 'true':
+    if criteria["Wooden Floors"].lower() == 'true':
         keywords.append(general_constants.CheckboxFeatures.WOODEN_FLOORS)
-    if criteria["data__Not On Ground Floor"].lower() == 'true':
+    if criteria["Not On Ground Floor"].lower() == 'true':
         keywords.append(general_constants.CheckboxFeatures.NO_GROUND_FLOOR)
-    if criteria["data__Open Plan Kitchen"].lower() == 'true':
+    if criteria["Open Plan Kitchen"].lower() == 'true':
         keywords.append(general_constants.CheckboxFeatures.OPEN_PLAN_KITCHEN)
-    if criteria["data__Has Garden"].lower() == 'true':
+    if criteria["Has Garden"].lower() == 'true':
         keywords.append(general_constants.CheckboxFeatures.GARDEN)
-    if criteria["data__Close To Gym"].lower() == 'true':
+    if criteria["Close To Gym"].lower() == 'true':
         keywords.append(general_constants.CheckboxFeatures.PROXIMITY_GYM)
-    if criteria["data__Not On Busy Street"].lower() == 'true':
+    if criteria["Not On Busy Street"].lower() == 'true':
         keywords.append(general_constants.CheckboxFeatures.NO_LOUD_STREET)
-    if criteria["data__Park Nearby"].lower() == 'true':
+    if criteria["Park Nearby"].lower() == 'true':
         keywords.append(general_constants.CheckboxFeatures.PROXIMITY_PARK)
-    if criteria["data__Is Bright"].lower() == 'true':
+    if criteria["Is Bright"].lower() == 'true':
         keywords.append(general_constants.CheckboxFeatures.BRIGHT)
-    if criteria["data__Modern Interiors"].lower() == 'true':
+    if criteria["Modern Interiors"].lower() == 'true':
         keywords.append(general_constants.CheckboxFeatures.MODERN_INTERIORS)
-    if criteria["data__Close To Supermarket"].lower() == 'true':
+    if criteria["Close To Supermarket"].lower() == 'true':
         keywords.append(general_constants.CheckboxFeatures.PROXIMITY_SUPERMARKET)
-    if criteria["data__Has Parking Space"].lower() == 'true':
+    if criteria["Has Parking Space"].lower() == 'true':
         keywords.append(general_constants.CheckboxFeatures.PARKING_SPACE)
-    if criteria["data__24hr Concierge"].lower() == 'true':
+    if criteria["24hr Concierge"].lower() == 'true':
         keywords.append(general_constants.CheckboxFeatures.CONCIERGE)
 
     return keywords
