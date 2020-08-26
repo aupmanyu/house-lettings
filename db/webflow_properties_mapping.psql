@@ -1,4 +1,0 @@
-CREATE TABLE IF NOT EXISTS properties_cms_mapping (
-    prop_uuid uuid,
-    webflow_cms_id varchar(50)
-);

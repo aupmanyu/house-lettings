@@ -1,0 +1,46 @@
+INSERT INTO "public"."property_listings"
+("prop_uuid", "geo_lat", "geo_long", "postcode", "rent_pcm",
+"beds", "date_available", "website_unique_id", "image_links",
+"floorplan_links", "estate_agent", "estate_agent_address", "description", "zone_best_guess")
+VALUES (
+    'e686d56f360e49b0be34a51a1668cb20',
+    51.5157217813101,
+    -0.165058197912491,
+    'W2 2QG',
+    2059,
+    2,
+    '2020-02-28 19:07:31',
+    '77797624',
+    '["https://media.rightmove.co.uk/dir/77k/76585/77797624/76585_1127615_IMG_01_0000_max_656x437.jpg", "https://media.rightmove.co.uk/dir/77k/76585/77797624/76585_1127615_IMG_02_0000_max_656x437.jpg", "https://media.rightmove.co.uk/dir/77k/76585/77797624/76585_1127615_IMG_03_0000_max_656x437.jpg", "https://media.rightmove.co.uk/dir/77k/76585/77797624/76585_1127615_IMG_04_0000_max_656x437.jpg", "https://media.rightmove.co.uk/dir/77k/76585/77797624/76585_1127615_IMG_05_0000_max_656x437.jpg", "https://media.rightmove.co.uk/dir/77k/76585/77797624/76585_1127615_IMG_06_0000_max_656x437.jpg", "https://media.rightmove.co.uk/dir/77k/76585/77797624/76585_1127615_IMG_07_0000_max_656x437.jpg'', ''https://media.rightmove.co.uk/dir/77k/76585/77797624/76585_1127615_IMG_08_0000_max_656x437.jpg"]',
+    '["https://media.rightmove.co.uk/dir/77k/76585/77797624/76585_1127615_FLP_01_0000_max_600x600.png", "https://media.rightmove.co.uk/dir/77k/76585/77797624/76585_1127615_FLP_01_0000_max_900x900.png", "https://media.rightmove.co.uk/dir/77k/76585/77797624/76585_1127615_FLP_01_0000_max_1350x1350.png", "https://media.rightmove.co.uk/dir/77k/76585/77797624/76585_1127615_FLP_01_0000_max_2025x2025.png"]',
+    'Foxtons',
+    '27 - 31 Blandford Street, Marylebone, London, W1U 3DN',
+    'Letting information:Furnishing:FurnishedLetting type:Long termAdded on Rightmove: 28 February 2020 (4 days ago)Key featuresPrestigious residential blockLift and porterageSplendid 2 bedroom flat1st floorLovely reception roomSeparate kitchenGreat locationAvailable with Zero DepositFull description        LONG LET. Ideally situated behind Edgware Road, this superb 2 bedroom flat is located on the 1st floor of a sought-after building and benefits from a spacious reception room and porterage.Park West is located on Kendal Street moments from the amenities of Edgware Road, Connaught Village and Marble Arch, with the open spaces of Hyde Park also close by. Marble Arch is the closest underground station.More information from this agentTo view this media, please visit the on-line version of this page at www.rightmove.co.uk/property-to-rent/property-77797624.htmlProperty detailsSuper sized imagesEnergy Performance Certificates (EPCs)To view this media, please visit the on-line version of this page at www.rightmove.co.uk/property-to-rent/property-77797624.htmlDownload EER for this property Download EIR for this property',
+    1
+);
+
+INSERT INTO "public"."users"
+("user_uuid", "username", "max_rent", "min_beds", "keywords", "destinations")
+VALUES (
+    '12d3bcc2fd3242efb1b47550620c89ab',
+    'upmanyu.aashish@yahoo.com',
+    1100,
+    2,
+    'wooden floors,garden',
+    '[{"Deloitte Digital": {"modes": [{"transit": 30}]}}, {"EC4A 3BZ": {"modes": [{"cycling": 45}]}}, {"Earl''s Court": {"modes": [{"driving": 45}]}}, {"SW7 2AZ": {"modes": [{"walking": 60}]}}]'
+  );
+
+INSERT INTO "public"."filtered_properties"
+("user_uuid", "prop_uuid", "date_sent_to_user", "user_favourites",
+"avg_travel_time_transit", "avg_travel_time_walking", "avg_travel_time_bicycling",
+"augment")
+VALUES (
+    '12d3bcc2fd3242efb1b47550620c89ab',
+    'e686d56f360e49b0be34a51a1668cb20',
+    '2020-03-05 17:10:25',
+    false,
+    26.004166666666700,
+    50.375,
+    17.670833333333300,
+    '{"travel_time": [{"Deloitte Digital": {"transit": 27.5, "walking": 60.266666666666666, "bicycling": 21.683333333333334}}, {"EC4A 3BZ": {"transit": 22.316666666666666, "walking": 57.333333333333336, "bicycling": 21.566666666666666}}, {"Earl''s Court": {"transit": 24.1, "walking": 53.55, "bicycling": 16.9}}, {"SW7 2AZ": {"transit": 30.1, "walking": 30.35, "bicycling": 10.533333333333333}}], "nearby_station_zones": [{"Marble Arch": "1"}, {"Paddington": "1"}, {"Lancaster Gate": "1"}, {"Baker Street": "1"}, {"Bond Street": "1"}, {"Marylebone": "1"}, {"Paddington": "1"}]}'
+    );

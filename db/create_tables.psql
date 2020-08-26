@@ -1,7 +1,0 @@
-\i property_listings.psql
-\i users.psql
-\i user_transactions.psql
-\i filtered_properties.psql
-\i webflow_properties_mapping.psql
-\i nhoods.psql
-\i nhoods_cat.psql

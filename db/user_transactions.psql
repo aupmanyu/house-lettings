@@ -1,6 +1,0 @@
-CREATE TABLE IF NOT EXISTS user_transactions (
-    user_uuid uuid REFERENCES users(user_uuid),
-    insert_timestamp timestamp,
-    payload jsonb,
-    PRIMARY KEY (user_uuid, insert_timestamp)
-);
