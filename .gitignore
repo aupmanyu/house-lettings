@@ -1,9 +1,10 @@
 # Application specific
 *.html
 *.csv
+potential_tenants/app/apikey.json
 potential_tenants/.env
 potential_tenants/db/postico/
-scratch/text_analysis/
+scratch/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

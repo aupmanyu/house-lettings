@@ -50,6 +50,8 @@ def create_item(payload: dict, collection_id: str, live=True):
         r = webflow_cms_session.post(url, json=payload)
         cms_logger.info("Sucessfully created item with ID {}".format(r.json()["_id"]))
 
+        return r.json()["_id"]
+
     except requests.exceptions.HTTPError as errh:
         cms_logger.error(errh, exc_info=1)
 
